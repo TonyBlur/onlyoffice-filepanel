@@ -77,9 +77,8 @@
 - 新增翻译请在 `frontend/src/locales` 或 `frontend/src/i18n.js` 中补充对应条目。
 
 许可证
-- 本项目为示例原型，默认未指定许可证。请根据需要添加 LICENSE 文件。
+- 本项目采用 MIT 许可证（MIT）。许可证全文见仓库根目录的 `LICENSE` 文件。
+- 版权所有：TonyBlur © 2025
 
 联系方式
 - 如需帮助，可在 GitHub 仓库提交 Issue：https://github.com/TonyBlur/onlyoffice-filepanel/issues
-
----
