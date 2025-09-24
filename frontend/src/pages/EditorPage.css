@@ -1,7 +1,10 @@
 .editor-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 64px); /* subtract header height (64px) */
+  /* Prefer using the shared header height variable; fall back to 56px and use !important to override other rules */
+  height: calc(100vh - var(--app-header-height, 56px)) !important;
+  /* allow flex children to size correctly */
+  flex: 1 1 auto;
   padding: 0;
   box-sizing: border-box;
 }

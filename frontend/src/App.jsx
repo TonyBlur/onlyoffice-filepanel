@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom'; // Remove BrowserRouter
 import { Layout, Space, Button, Dropdown, Menu } from 'antd';
 import { GlobalToken, ThemeProvider, createStyles, useTheme } from 'antd-style';
-import { MoonOutlined, SunOutlined, GlobalOutlined, UserOutlined, ArrowLeftOutlined } from '@ant-design/icons'; // Import ArrowLeftOutlined
+import { MoonOutlined, SunOutlined, DesktopOutlined, GlobalOutlined, UserOutlined, ArrowLeftOutlined } from '@ant-design/icons'; // Import ArrowLeftOutlined and DesktopOutlined
 import { useTranslation } from 'react-i18next';
 import EditorPage from './pages/EditorPage';
 import HomePage from './pages/HomePage';
@@ -16,7 +16,8 @@ const useStyles = createStyles(({ token }) => ({
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '0 20px',
+    padding: '0 12px',
+    height: 56,
     backgroundColor: 'var(--card)',
   },
   brand: {
@@ -26,13 +27,13 @@ const useStyles = createStyles(({ token }) => ({
   },
   content: {
     padding: 20,
-    minHeight: 'calc(100vh - 64px)', // Adjust minHeight for full editor space (Header is 64px)
+    minHeight: 'calc(100vh - var(--app-header-height))',
     display: 'flex',
     flexDirection: 'column',
   },
   fullHeightContent: {
     padding: 0, // Remove padding for full screen editor
-    minHeight: 'calc(100vh - 64px)', // Adjust minHeight for full editor space
+    minHeight: 'calc(100vh - var(--app-header-height))', // Adjust minHeight for full editor space
     display: 'flex',
     flexDirection: 'column',
   },
@@ -49,6 +50,7 @@ function App() {
   const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [isSystemDark, setIsSystemDark] = useState(() => window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const location = useLocation(); // Initialize useLocation
   const navigate = useNavigate(); // Initialize useNavigate
 
@@ -59,6 +61,21 @@ function App() {
     setIsAdminLoggedIn(loggedIn);
     document.documentElement.setAttribute('data-theme', currentTheme);
   }, [currentTheme]);
+
+  // listen to system theme changes so 'system' mode icon updates
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => setIsSystemDark(!!e.matches);
+    try {
+      mq.addEventListener ? mq.addEventListener('change', handler) : mq.addListener(handler);
+    } catch (e) {
+      try { mq.addListener(handler); } catch (err) {}
+    }
+    return () => {
+      try { mq.removeEventListener ? mq.removeEventListener('change', handler) : mq.removeListener(handler); } catch (e) {}
+    };
+  }, []);
 
   const handleLanguageChange = ({ key }) => {
     i18n.changeLanguage(key);
@@ -99,13 +116,14 @@ function App() {
     ],
   };
 
-  const themeMenu = {
+  // memoize menu to avoid recreating on each render which can affect Dropdown behavior
+  const themeMenu = useMemo(() => ({
     items: [
-      { key: 'light', label: t('Light Mode'), onClick: () => handleThemeChange('light') },
-      { key: 'dark', label: t('Dark Mode'), onClick: () => handleThemeChange('dark') },
-      { key: 'system', label: t('System Mode'), onClick: () => handleThemeChange('system') },
+      { key: 'light', label: t('Light Mode'), icon: <SunOutlined />, onClick: () => handleThemeChange('light') },
+      { key: 'dark', label: t('Dark Mode'), icon: <MoonOutlined />, onClick: () => handleThemeChange('dark') },
+      { key: 'system', label: t('System Mode'), icon: <DesktopOutlined />, onClick: () => handleThemeChange('system') },
     ],
-  };
+  }), [t]);
 
   const adminMenu = {
     items: isAdminLoggedIn
@@ -115,10 +133,10 @@ function App() {
 
   return (
     <ThemeProvider appearance={currentTheme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : currentTheme}>
-        <Layout style={{ minHeight: '100vh' }}>
+        <Layout style={{ minHeight: '100vh', '--app-header-height': '56px' }}>
           <Header className={styles.header}>
             {isEditorPage ? (
-              <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>{t('返回')}</Button>
+              <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>{t('Back')}</Button>
             ) : (
               <div className={styles.brand}>{t('OnlyOffice File Panel')}</div>
             )}
@@ -126,8 +144,11 @@ function App() {
               <Dropdown menu={languageMenu} placement="bottomRight">
                 <Button icon={<GlobalOutlined />} />
               </Dropdown>
-              <Dropdown menu={themeMenu} placement="bottomRight">
-                <Button icon={currentTheme === 'dark' ? <MoonOutlined /> : <SunOutlined />} />
+              <Dropdown menu={themeMenu} placement="bottomRight" trigger={["click"]}>
+                <Button icon={(() => {
+                  if (currentTheme === 'system') return isSystemDark ? <MoonOutlined /> : <SunOutlined />;
+                  return currentTheme === 'dark' ? <MoonOutlined /> : <SunOutlined />;
+                })()} />
               </Dropdown>
               <Dropdown menu={adminMenu} placement="bottomRight">
                 <Button icon={<UserOutlined />} type={isAdminLoggedIn ? "primary" : "default"} />

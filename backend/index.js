@@ -35,6 +35,25 @@ try {
   console.error('Failed to create file directory:', e.message);
 }
 
+// --- cleanup zero-byte files at startup to avoid invalid files lingering ---
+try {
+  const startupFiles = fs.readdirSync(FILE_DIR || '.');
+  startupFiles.forEach(f => {
+    const p = path.join(FILE_DIR, f);
+    try {
+      const st = fs.statSync(p);
+      if (st && st.size === 0) {
+        fs.unlinkSync(p);
+        console.warn('Removed zero-size file at startup:', p);
+      }
+    } catch (e) {
+      // ignore
+    }
+  });
+} catch (e) {
+  // ignore
+}
+
 // Configure multer for multipart/form-data uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -65,31 +84,48 @@ const checkAuth = (req, res, next) => {
 };
 
 app.get('/api/files', checkAuth, (req, res) => {
-  fs.readdir(FILE_DIR, (err, files) => {
-    if (err) return res.status(500).json({ error: err.message });
-    try {
-      const items = files.map(f => {
-        const p = path.join(FILE_DIR, f);
-        let stat = null;
-        try { stat = fs.statSync(p); } catch (e) { stat = null }
-        return {
-          name: f,
-          url: `/files/${encodeURIComponent(f)}`,
-          mtime: stat ? stat.mtime.toISOString() : null,
-          mtimeMs: stat ? stat.mtimeMs : 0,
-          size: stat ? stat.size : 0
-        }
-      });
-      // sort by mtime desc
-      items.sort((a,b) => b.mtimeMs - a.mtimeMs);
-      const role = (req.query.role || 'guest');
-      if (role === 'admin') return res.json(items);
-      // guest: return top 5 recent files by default
-      return res.json(items.slice(0,5));
-    } catch (e) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
+  // Supports pagination: ?page=1&perPage=10
+  // Returns { items: [...], total, page, perPage, totalPages }
+  try {
+    const rawFiles = fs.readdirSync(FILE_DIR || '.');
+    const items = rawFiles.map(f => {
+      const p = path.join(FILE_DIR, f);
+      let stat = null;
+      try { stat = fs.statSync(p); } catch (e) { stat = null }
+      return {
+        name: f,
+        url: `/files/${encodeURIComponent(f)}`,
+        mtime: stat ? stat.mtime.toISOString() : null,
+        mtimeMs: stat ? stat.mtimeMs : 0,
+        size: stat ? stat.size : 0
+      };
+    });
+
+    // sort by mtime desc
+    items.sort((a,b) => b.mtimeMs - a.mtimeMs);
+
+    const role = (req.query.role || 'guest');
+    // parse pagination params
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const defaultPerPage = role === 'admin' ? 20 : 5;
+    const perPage = Math.max(1, parseInt(req.query.perPage, 10) || defaultPerPage);
+
+    const total = items.length;
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+    const start = (page - 1) * perPage;
+    const paged = items.slice(start, start + perPage);
+
+    return res.json({
+      items: paged,
+      total,
+      page,
+      perPage,
+      totalPages
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 });
 
 app.get('/files/:name', (req, res) => {
@@ -427,6 +463,24 @@ app.get('/editor/:name', (req, res) => {
     }
   }
 
+  // 把 token 放入 configObj，确保前端能直接从 docConfig.token 读取到正确的 JWT
+  try {
+    if (token) {
+      // Strip whitespace/newlines just in case
+      token = String(token).replace(/\s+/g, '');
+      // Verify token can be decoded with secret
+      try {
+        const decoded = jwt.verify(token, DOC_SERVER_JWT_SECRET);
+        console.log('JWT verified successfully, payload:', JSON.stringify(decoded));
+      } catch (verifyErr) {
+        console.error('JWT verification failed:', verifyErr.message);
+      }
+      configObj.token = token;
+    }
+  } catch (e) {
+    console.warn('Failed to attach token to configObj:', e.message);
+  }
+
   const html = `<!doctype html>
   <html>
   <head><meta charset="utf-8"><title>OnlyOffice Editor - ${name}</title>
@@ -437,23 +491,25 @@ app.get('/editor/:name', (req, res) => {
   <script src="${docServer}/web-apps/apps/api/documents/api.js"></script>
 
   <script>
-    // config object injected from server
+    // config object injected from server (includes token)
     var docConfig = ${JSON.stringify(configObj)};
     // expose both browserUrl (used by client) and server-side downloadUrl when needed
     docConfig.browserUrl = ${JSON.stringify(browserUrl)};
     docConfig.callbackUrl = ${JSON.stringify(callbackUrl)};
     docConfig.document.key = ${JSON.stringify(configObj.document.key)};
-    // Directly inject token to ensure OnlyOffice receives it
-    docConfig.token = ${JSON.stringify(token)};
-    var docEditor = new DocsAPI.DocEditor('editor', docConfig);
+    // Expose token explicitly as well
+    window.__DOC_CONFIG__ = docConfig;
+    window.__DOC_TOKEN__ = ${JSON.stringify(token)};
+    // Frontend is expected to load api.js and call: new DocsAPI.DocEditor('editor', window.__DOC_CONFIG__);
   </script>
   </body>
   </html>`;
+
   res.send(html);
 });
 
 // Create new file endpoint
-app.post('/api/files/create', (req, res) => {
+app.post('/api/files/create', async (req, res) => {
   try {
     const { name, format } = req.body || {};
     if (!name) return res.status(400).json({ error: 'missing name' });
@@ -471,43 +527,56 @@ app.post('/api/files/create', (req, res) => {
     // If file exists, return conflict
     if (fs.existsSync(filePath)) return res.status(409).json({ error: 'file exists' });
 
-    // Try to create file from template files located in backend/templates/
+    // Try to create file from local template files located in backend/templates/
     const templatesDir = path.join(__dirname, 'templates');
     const templateFile = path.join(templatesDir, `blank${ext}`);
-    
+
     try {
       if (fs.existsSync(templateFile)) {
-        // copy template binary
-        fs.copyFileSync(templateFile, filePath);
-        return res.json({ ok: true, name: finalName });
-      }
-      
-      // fallback: if we have an example docx in repository, use it for .docx
-      if (ext.toLowerCase() === '.docx') {
-        const sampleDocx = path.join(__dirname, 'test-document.docx');
-        if (fs.existsSync(sampleDocx)) {
-          fs.copyFileSync(sampleDocx, filePath);
-          return res.json({ ok: true, name: finalName });
+        try {
+          const st = fs.statSync(templateFile);
+          console.log('Template file exists at', templateFile, 'size', st.size);
+
+          // Directly copy template to destination without validating header/magic bytes
+          try {
+            fs.copyFileSync(templateFile, filePath);
+            console.log('Copied template to', filePath);
+            return res.json({ ok: true, name: finalName });
+          } catch (e) {
+            console.warn('Failed to copy template file:', e.message);
+          }
+        } catch (e) {
+          console.warn('Failed to inspect template file:', e.message);
         }
+      } else {
+        console.log('No local template file found at', templateFile);
       }
-      
-      // For PDF we can generate a minimal valid PDF
+
+      // If requested ext is PDF, generate a minimal valid PDF (blank)
       if (ext.toLowerCase() === '.pdf') {
         const pdfMinimal = Buffer.from('%PDF-1.4\n%âãÏÓ\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 44 >>\nstream\nBT /F1 24 Tf 72 100 Td (Blank PDF) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000010 00000 n \n0000000060 00000 n \n0000000120 00000 n \n0000000200 00000 n \ntrailer\n<< /Root 1 0 R /Size 5 >>\nstartxref\n300\n%%EOF');
         fs.writeFileSync(filePath, pdfMinimal);
         return res.json({ ok: true, name: finalName });
       }
-      
-      // If no template available for this extension, create an empty file but return warning
-      fs.writeFileSync(filePath, Buffer.from(''));
-      return res.json({ ok: true, name: finalName, warning: 'no_template_available' });
+
+      // No valid local template and not PDF -> return error instead of creating empty file
+      console.error('No valid local template available for', ext, 'cannot create', finalName);
+      return res.status(500).json({ error: 'no_valid_local_template', detail: `No valid local template for ${ext}. Place a template at ${templateFile}` });
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
+   } catch (e) {
+     return res.status(500).json({ error: e.message });
+   }
 });
+
+// Ensure templates directory exists (do not fail startup if templates missing)
+try {
+  const templatesDir = path.join(__dirname, 'templates');
+  fs.mkdirSync(templatesDir, { recursive: true });
+} catch (e) {
+  console.warn('Failed to ensure templates directory:', e.message);
+}
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`Backend listening on ${PORT}`));

@@ -1,17 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import './EditorPage.css';
 
 const EditorPage = () => {
   const { name } = useParams();
   const location = useLocation();
   const userMode = new URLSearchParams(location.search).get('user') || 'user';
+  const { i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [docConfig, setDocConfig] = useState(null);
   const [docApiUrl, setDocApiUrl] = useState('');
   const editorRef = useRef(null);
   const docEditorRef = useRef(null);
+
+  const normalizeLang = (lang) => {
+    if (!lang) return 'en';
+    // convert common i18n short codes to OnlyOffice expected codes
+    if (lang === 'zh' || lang.startsWith('zh-')) return 'zh-CN';
+    if (lang === 'en' || lang.startsWith('en-')) return 'en';
+    // return as-is for other locales like 'de', 'fr', etc.
+    return lang;
+  };
 
   useEffect(() => {
     const loadEditor = async () => {
@@ -64,6 +75,16 @@ const EditorPage = () => {
             const jsonStr = txt.substring(braceStart, endIndex + 1);
             try {
               const cfg = JSON.parse(jsonStr);
+              // inject language from app settings so OnlyOffice UI follows admin panel lang
+              try {
+                const appLang = normalizeLang(i18n && i18n.language ? i18n.language : 'en');
+                cfg.editorConfig = cfg.editorConfig || {};
+                // set both editorConfig.lang and top-level lang as in the example
+                cfg.editorConfig.lang = appLang;
+                cfg.lang = appLang;
+              } catch (e) {
+                console.warn('Failed to inject language into docConfig', e);
+              }
               // Try to extract docConfig.token assigned later in the same script
               const tokenMatch = txt.match(/docConfig\.token\s*=\s*['\"]([^'\"]+)['\"]/);
               if (tokenMatch && tokenMatch[1]) {
@@ -98,7 +119,7 @@ const EditorPage = () => {
     if (name) {
       loadEditor();
     }
-  }, [name, userMode]);
+  }, [name, userMode, i18n]);
 
   useEffect(() => {
     if (docConfig && editorRef.current && !docEditorRef.current) {
