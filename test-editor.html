@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OnlyOffice 编辑器测试</title>
+</head>
+<body>
+    <h1>OnlyOffice 编辑器测试</h1>
+    <p>这是一个测试页面，用于验证JWT token是否正确配置。</p>
+    
+    <div id="editor" style="width: 100%; height: 800px;"></div>
+    
+    <script src="http://localhost/web-apps/apps/api/documents/api.js"></script>
+    <script>
+        // 配置对象 - 直接从后端获取的配置
+        var docConfig = {
+            "documentType": "word",
+            "document": {
+                "title": "test-jwt-token.txt",
+                "url": "http://host.docker.internal:4000/files/test-jwt-token.txt",
+                "key": "7f16d2ffe2aff7e2ddee5f23e59f9b02f4f5ed5b5196538297c3db3bafcb8840"
+            },
+            "editorConfig": {
+                "callbackUrl": "http://host.docker.internal:4000/onlyoffice/webhook",
+                "mode": "edit"
+            }
+        };
+        
+        // 添加必要的配置
+        docConfig.browserUrl = "http://host.docker.internal:4000";
+        docConfig.callbackUrl = "http://host.docker.internal:4000/onlyoffice/webhook";
+        docConfig.document.key = "7f16d2ffe2aff7e2ddee5f23e59f9b02f4f5ed5b5196538297c3db3bafcb8840";
+        
+        // 直接注入JWT token - 这是关键部分
+        docConfig.token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXkiOiI3ZjE2ZDJmZmUyYWZmN2UyZGRlZTVmMjNlNTlmOWIwMmY0ZjVlZDViNTE5NjUzODI5N2MzZGIzYmFmY2I4ODQwIiwidXJsIjoiaHR0cDovL2hvc3QuZG9ja2VyLmludGVybmFsOjQwMDAvZmlsZXMvdGVzdC1qd3QtdG9rZW4udHh0IiwiY2FsbGJhY2tVcmwiOiJodHRwOi8vaG9zdC5kb2NrZXIuaW50ZXJuYWw6NDAwMC9vbmx5b2ZmaWNlL3dlYmhvb2siLCJpYXQiOjE3NTgyMzkxOTR9.y3HcgbbOymYh2oX7QLMfID5zPtxWQgNsCysnRctVqI8";
+        
+        // 初始化编辑器
+        var docEditor = new DocsAPI.DocEditor('editor', docConfig);
+        
+        // 监听编辑器事件
+        docEditor.addEventListener('onReady', function() {
+            console.log('编辑器已准备就绪');
+        });
+        
+        docEditor.addEventListener('onDocumentReady', function() {
+            console.log('文档已加载');
+        });
+        
+        docEditor.addEventListener('onError', function(error) {
+            console.error('编辑器错误:', error);
+        });
+        
+        docEditor.addEventListener('onDocumentStateChange', function(event) {
+            console.log('文档状态变更:', event);
+        });
+        
+    </script>
+</body>
+</html>

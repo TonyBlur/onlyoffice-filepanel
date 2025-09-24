@@ -1,0 +1,21 @@
+{
+  "version": "1.2",
+  "services": {
+    "CoAuthoring": {
+      "Command": "convert2pdf",
+      "server": {
+        "port": 80,
+        "private_port": 80
+      },
+      "storage": {
+        "url": "http://host.docker.internal:4000",
+        "path": "/files/",
+        "command": {
+          "download": {
+            "command": "onlyoffice-documentserver-generate-preview.sh"
+          }
+        }
+      }
+    }
+  }
+}

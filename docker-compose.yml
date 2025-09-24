@@ -1,0 +1,50 @@
+version: '3.7'
+services:
+  # Note: ONLYOFFICE Document Server (onlyoffice/documentserver) is intentionally NOT included
+  # in this compose file. Please install the Document Server separately and set the
+  # backend environment variable DOC_SERVER_URL to the browser-accessible URL of your
+  # Document Server (for example: http://localhost:8080 or https://docs.example.com).
+  #
+  # Rationale: the editor HTML returned by the backend injects the Document Server URL
+  # for the browser to load scripts from. If you run Document Server in a different
+  # container/network, the container name (eg. http://docserver) may not be resolvable
+  # by your browser. To avoid confusion we require users to deploy Document Server
+  # (official repo: https://github.com/ONLYOFFICE/Docker-DocumentServer) and expose
+  # a browser-accessible address, then configure DOC_SERVER_URL accordingly.
+
+  backend:
+    build: ./backend
+    environment:
+      # DOC_SERVER_URL must be reachable by the browser. The local onlyoffice/documentserver
+      # container in this environment is mapped to host ports 80/443, so use http://localhost
+      - DOC_SERVER_URL=http://localhost
+      # DOC_SERVER_INTERNAL is the in-network address (if backend needs to request the docserver from inside compose)
+      - DOC_SERVER_INTERNAL=http://onlyoffice-documentserver:80
+      # JWT secret used to sign editor config for OnlyOffice Document Server
+      - DOC_SERVER_JWT_SECRET=hUQTo541dF2UjKzO56Ux9jHOD62csevJ
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./data/files:/app/data/files:rw
+    networks:
+      - onlyoffice-network
+
+  frontend:
+    build: ./frontend
+    environment:
+      - IN_DOCKER=1
+      # 修复环境变量，确保前端能正确连接到后端API
+      - VITE_BACKEND_URL=http://localhost:4000
+      # 确保前端在Docker容器中能正确处理JWT token
+      - VITE_API_URL=http://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - onlyoffice-network
+
+# 自定义网络
+networks:
+  onlyoffice-network:
+    driver: bridge

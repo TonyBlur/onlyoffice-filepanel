@@ -1,0 +1,22 @@
+<!doctype html>
+  <html>
+  <head><meta charset="utf-8"><title>OnlyOffice Editor - test-jwt-token.txt</title>
+  <style>body,html{height:100%;margin:0}#editor{height:100vh}</style>
+  </head>
+  <body>
+  <div id="editor"></div>
+  <script src="http://localhost/web-apps/apps/api/documents/api.js"></script>
+
+  <script>
+    // config object injected from server
+    var docConfig = {"documentType":"word","document":{"title":"test-jwt-token.txt","url":"http://host.docker.internal:4000/files/test-jwt-token.txt","key":"7f16d2ffe2aff7e2ddee5f23e59f9b02f4f5ed5b5196538297c3db3bafcb8840"},"editorConfig":{"callbackUrl":"http://host.docker.internal:4000/onlyoffice/webhook","mode":"edit"}};
+    // expose both browserUrl (used by client) and server-side downloadUrl when needed
+    docConfig.browserUrl = "http://host.docker.internal:4000";
+    docConfig.callbackUrl = "http://host.docker.internal:4000/onlyoffice/webhook";
+    docConfig.document.key = "7f16d2ffe2aff7e2ddee5f23e59f9b02f4f5ed5b5196538297c3db3bafcb8840";
+    // Directly inject token to ensure OnlyOffice receives it
+    docConfig.token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXkiOiI3ZjE2ZDJmZmUyYWZmN2UyZGRlZTVmMjNlNTlmOWIwMmY0ZjVlZDViNTE5NjUzODI5N2MzZGIzYmFmY2I4ODQwIiwidXJsIjoiaHR0cDovL2hvc3QuZG9ja2VyLmludGVybmFsOjQwMDAvZmlsZXMvdGVzdC1qd3QtdG9rZW4udHh0IiwiY2FsbGJhY2tVcmwiOiJodHRwOi8vaG9zdC5kb2NrZXIuaW50ZXJuYWw6NDAwMC9vbmx5b2ZmaWNlL3dlYmhvb2siLCJpYXQiOjE3NTgyMzc1NTl9.CRZ9qNOJoGwv6scQ_w0g3lI9Zsggzd8FfBmS6CfEGTw";
+    var docEditor = new DocsAPI.DocEditor('editor', docConfig);
+  </script>
+  </body>
+  </html>
