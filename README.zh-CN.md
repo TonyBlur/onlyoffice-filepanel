@@ -72,6 +72,9 @@
 - `POST /api/login { password }` — 管理员登录（设置 cookie）
 - `POST /onlyoffice/webhook` — Document Server 保存回调（由 Document Server 调用）
 
+### 安装字体
+请参阅 [安装字体](./Install_Fonts.zh-CN.md)
+
 ## ❓ 常见问题与排查
 - OnlyOffice 在编辑器中显示 HTML 内容或提示扩展名不匹配：
   - 检查 `backend/templates` 中对应模板是否为真实 Office 文件（用十六进制查看首字节应为 `50 4B` 表示 zip）。

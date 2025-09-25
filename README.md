@@ -69,6 +69,9 @@ This project does NOT include ONLYOFFICE Document Server; you need to deploy it 
 - `POST /api/login { password }`
 - `POST /onlyoffice/webhook`
 
+### Install fonts
+See [Install Fonts](./Install_Fonts.md)
+
 ## ❓ Troubleshooting
 - If OnlyOffice shows an HTML page or reports "file content does not match the file extension", verify that templates are valid Office binaries.
 - If Document Server cannot download files (ECONNREFUSED), set `DOC_SERVER_INTERNAL_HOST` to a host/address the Document Server can use to reach the backend.
