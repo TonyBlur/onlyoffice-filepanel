@@ -1,3 +1,14 @@
 node_modules
 dist
 *.log
+
+# Ignore runtime uploaded files
+/backend/data/
+
+# Docker
+*.env
+docker-compose.override.yml
+
+# IDEs
+.vscode/
+.idea/

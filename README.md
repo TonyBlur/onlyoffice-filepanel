@@ -1,84 +1,75 @@
-# OnlyOffice File Panel — 最小可用面板（示例项目）
+# OnlyOffice File Panel<br> — Extremely Simple File Management Panel for OnlyOffice
 
-这是一个用于演示如何把 OnlyOffice Document Server 集成到简单文件面板的最小原型。
+English | [简体中文](./README.zh-CN.md)
 
-主要功能
-- 在面板中列出、上传、创建、删除 Office 文档（docx、pptx、xlsx、pdf 等）。
-- 通过 OnlyOffice Document Server 打开并在线编辑文档（使用 JWT 保护）。
-- 管理员可进行批量删除等操作。
+## ✨ Features
+- List, upload, create, and delete Office documents (docx, pptx, xlsx, pdf).
+- Open and edit documents via OnlyOffice Document Server using signed JWT configuration.
+- Admin features include bulk delete and pagination.
 
-项目结构（简要）
-- `backend/` — Node.js (Express) 后端：文件管理 API、/editor/:name 页面、OnlyOffice webhook 等。
-- `frontend/` — React 前端：文件列表、编辑器页面、国际化支持（i18n）。
-- `data/files/` — 运行时存放的文件（宿主卷映射）。
-- `backend/templates/` — 新建文件的空白模板（请使用真实 Office 二进制文件，避免 HTML 占位文件）。
-- `docker-compose.yml` — 启动 Document Server、backend、frontend 的示例编排。
+## 🗂️ Repository layout
+- `backend/` — Node.js (Express) backend: file APIs, /editor/:name HTML injector, OnlyOffice webhook handler.
+- `frontend/` — React frontend with Ant Design: file list, editor page, i18n.
+- `files_data:/app/data/files` or `backend/data/files` — Persistent storage for files (mapped host volume).
+- `backend/templates/` — Local blank templates used for new file creation (use real Office binaries).
+- `docker-compose.yml` — Docker-compose to run backend and frontend.
 
-先决条件
-- 推荐使用 Docker + docker-compose 来运行完整环境。
-- 如果本地开发：需要 Node.js（建议 v18+）、npm 或 pnpm。
+## 🚀 Quick start
 
-环境变量（重要）
-- `DOC_SERVER_URL`：OnlyOffice Document Server 在浏览器可访问的 URL（示例：`http://localhost` 或 `http://docserver:80`）。
-- `DOC_SERVER_JWT_SECRET`：与 Document Server 共享的 JWT 密钥，用于签名编辑器配置。
-- `DOC_SERVER_INTERNAL_HOST`（可选）：当 Document Server 在容器内或不同网络，需要一个 Document Server 从后端访问后端文件的内部地址，例如 `host.docker.internal:4000` 或 `backend:4000`。
-- `DOC_SERVER_INTERNAL`（可选）：设为 `true` 时启用内部 host 回退逻辑。
-- `ADMIN_PASSWORD`：管理员登录密码（测试用）。
-- `PORT`：后端监听端口（默认 4000）。
+This project does NOT include ONLYOFFICE Document Server; you need to deploy it separately and set the required environment variables.
 
-模板说明（重要）
-- `backend/templates/` 目录应包含针对常见扩展名的空白模板文件：`blank.docx`、`blank.pptx`、`blank.xlsx`、`blank.pdf`。
-- 请使用真实的 Office 二进制文件（docx/pptx/xlsx 为 zip/PK 格式），不要使用示例网站的 HTML 占位文件；否则 OnlyOffice 会提示“file content does not match the file extension” 或显示 HTML 页面。
-- 如果没有模板，后端会在创建 PDF 时生成一个最小 PDF；其它格式会返回错误，提示放置模板文件。
+- Docker & docker-compose (recommended).
+- Node.js (v18+) and npm/pnpm for local development.
 
-使用 Docker（推荐）
-1. 在仓库根目录，复制或编辑 `.env`（如果有），设置环境变量，例如：
-   DOC_SERVER_URL=http://docserver:80
-   DOC_SERVER_JWT_SECRET=your-secret
-   ADMIN_PASSWORD=admin123
-2. 启动（示例）：
+### Important environment variables
+- `DOC_SERVER_URL` — URL reachable by end-users to load Document Server frontend assets (e.g. `http://docs.example.com`).
+- `DOC_SERVER_JWT_SECRET` — JWT secret shared between backend and Document Server.
+- `DOC_SERVER_INTERNAL_HOST` (optional) — internal address that Document Server can use to reach backend (e.g. `host.docker.internal:4000` or `backend:4000`).
+- `DOC_SERVER_INTERNAL` (optional) — boolean flag; when true and no host provided a default internal host is used.
+- `ADMIN_PASSWORD` — simple admin password used by the example login endpoint.
+- `PORT` — backend listen port (default 4000).
+
+### Templates
+- Place blank templates under `backend/templates/` named `blank.docx`, `blank.pptx`, `blank.xlsx`, `blank.pdf`.
+- Templates must be valid Office binary files — do not use HTML placeholder files. Office formats like docx/pptx/xlsx are ZIP (start with PK 0x50 0x4B).
+
+### Docker Compose
+1. Copy or create `.env` and set environment variables as needed.
+2. Start services:
+   ```
    docker-compose up --build
-3. 打开浏览器访问：
-   - 前端（面板）：http://localhost:3000
-   - 后端 API（开发检查）：http://localhost:4000
+   ```
+3. Access the UI:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:4000
 
-本地开发（可选）
-- 后端：
+### Local development (optional)
+- Backend:
   cd backend
   npm install
-  NODE_ENV=development DOC_SERVER_JWT_SECRET=your-secret node index.js
+  NODE_ENV=development
+  DOC_SERVER_JWT_SECRET=your-secret node index.js
 
-- 前端：
+- Frontend:
   cd frontend
   npm install
   npm start
 
-（注：前端开发服务器在容器化环境下需要指向后端地址，环境变量 VITE_BACKEND_URL 或 package.json 中 proxy 需要配置为后端地址。）
+(Note: In a containerized environment, the frontend dev server must point to the backend address. Set `VITE_BACKEND_URL` or configure `proxy` in package.json accordingly.)
 
-常用 API（后端）
-- GET /api/files?page=1&perPage=10 — 列表（支持分页）
-- GET /files/:name — 下载/直接访问文件
-- POST /api/files/create { name, format } — 基于模板创建新文件
-- POST /api/files/upload — 上传文件（multipart/form-data，字段名 file）
-- DELETE /api/files/:name — 删除文件
-- POST /api/login { password } — 管理员登录（设置 cookie）
-- POST /onlyoffice/webhook — Document Server 保存回调（由 Document Server 调用）
+### APIs (backend)
+- `GET /api/files?page=1&perPage=10`
+- `GET /files/:name`
+- `POST /api/files/create`
+- `POST /api/files/upload` (multipart/form-data, field 'file')
+- `DELETE /api/files/:name`
+- `POST /api/login { password }`
+- `POST /onlyoffice/webhook`
 
-常见问题与排查
-- OnlyOffice 在编辑器中显示 HTML 内容或提示扩展名不匹配：
-  - 检查 `backend/templates` 中对应模板是否为真实 Office 文件（用十六进制查看首字节应为 `50 4B` 表示 zip）。
-- Document Server 下载失败（ECONNREFUSED 到 127.0.0.1:4000）：
-  - 当 Document Server 与后端运行在不同容器或主机时，需设置 `DOC_SERVER_INTERNAL_HOST` 为 Document Server 能访问的地址（如 `host.docker.internal:4000`）。
-- JWT 验证失败：
-  - 确认 `DOC_SERVER_JWT_SECRET` 在后端与 Document Server 配置中一致。
+## ❓ Troubleshooting
+- If OnlyOffice shows an HTML page or reports "file content does not match the file extension", verify that templates are valid Office binaries.
+- If Document Server cannot download files (ECONNREFUSED), set `DOC_SERVER_INTERNAL_HOST` to a host/address the Document Server can use to reach the backend.
+- Ensure `DOC_SERVER_JWT_SECRET` matches on both sides to avoid JWT verification failures.
 
-贡献与开发规范
-- 提交前请确保前端/后端的依赖被正确安装并且代码通过简单验证。
-- 新增翻译请在 `frontend/src/locales` 或 `frontend/src/i18n.js` 中补充对应条目。
-
-许可证
-- 本项目采用 MIT 许可证（MIT）。许可证全文见仓库根目录的 `LICENSE` 文件。
-- 版权所有：TonyBlur © 2025
-
-联系方式
-- 如需帮助，可在 GitHub 仓库提交 Issue：https://github.com/TonyBlur/onlyoffice-filepanel/issues
+## 📜 License
+- This project is licensed under the MIT License. See `LICENSE` in the repository root.

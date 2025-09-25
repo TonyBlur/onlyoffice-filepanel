@@ -25,7 +25,7 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - ./data/files:/app/data/files:rw
+      - files_data:/app/data/files:rw
     networks:
       - onlyoffice-network
 
@@ -44,7 +44,10 @@ services:
     networks:
       - onlyoffice-network
 
-# 自定义网络
+volumes:
+  files_data:
+    driver: local
+
 networks:
   onlyoffice-network:
     driver: bridge
