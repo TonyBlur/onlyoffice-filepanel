@@ -47,15 +47,19 @@
 
 ### 本地开发（可选）
 - 后端：
+  ```
   cd backend
   npm install
   NODE_ENV=development
   DOC_SERVER_JWT_SECRET=your-secret node index.js
+  ```
 
 - 前端：
+  ```
   cd frontend
   npm install
   npm start
+  ```
 
 （注：前端开发服务器在容器化环境下需要指向后端地址，环境变量 VITE_BACKEND_URL 或 package.json 中 proxy 需要配置为后端地址。）
 

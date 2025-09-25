@@ -45,17 +45,20 @@ This project does NOT include ONLYOFFICE Document Server; you need to deploy it 
 
 ### Local development (optional)
 - Backend:
-  cd backend
+  ```
   npm install
   NODE_ENV=development
   DOC_SERVER_JWT_SECRET=your-secret node index.js
+  ```
 
 - Frontend:
+  ```
   cd frontend
   npm install
   npm start
+  ```
 
-(Note: In a containerized environment, the frontend dev server must point to the backend address. Set `VITE_BACKEND_URL` or configure `proxy` in package.json accordingly.)
+  (Note: In a containerized environment, the frontend dev server must point to the backend address. Set `VITE_BACKEND_URL` or configure `proxy` in package.json accordingly.)
 
 ### APIs (backend)
 - `GET /api/files?page=1&perPage=10`
