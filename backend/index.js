@@ -22,6 +22,9 @@ app.use(cookieParser());
 
 // store files under the app folder so docker-compose volume ./data/files maps to it
 const FILE_DIR = path.join(__dirname, 'data', 'files');
+const META_DIR = path.join(__dirname, 'data');
+const NAME_VERSIONS_FILE = path.join(META_DIR, 'nameVersions.json');
+const KEYMAP_FILE = path.join(META_DIR, 'keymap.json');
 const DOC_SERVER_URL = process.env.DOC_SERVER_URL || 'http://localhost:80';
 const DOC_SERVER_JWT_SECRET = process.env.DOC_SERVER_JWT_SECRET || 'hUQTo541dF2UjKzO56Ux9jHOD62csevJ';
 // When Document Server runs in Docker, it may need a different host to reach this backend.
@@ -34,6 +37,31 @@ try {
 } catch (e) {
   console.error('Failed to create file directory:', e.message);
 }
+
+// --- helper functions for simple JSON metadata persistence ---
+function loadJsonSafe(fp) {
+  try {
+    if (fs.existsSync(fp)) {
+      return JSON.parse(fs.readFileSync(fp, 'utf8') || '{}');
+    }
+  } catch (e) {
+    console.warn('Failed to load JSON', fp, e.message);
+  }
+  return {};
+}
+
+function saveJsonSafe(fp, obj) {
+  try {
+    fs.mkdirSync(path.dirname(fp), { recursive: true });
+    fs.writeFileSync(fp, JSON.stringify(obj || {}, null, 2));
+  } catch (e) {
+    console.warn('Failed to save JSON', fp, e.message);
+  }
+}
+
+// Ensure meta files exist
+try { saveJsonSafe(KEYMAP_FILE, loadJsonSafe(KEYMAP_FILE)); } catch (e) {}
+try { saveJsonSafe(NAME_VERSIONS_FILE, loadJsonSafe(NAME_VERSIONS_FILE)); } catch (e) {}
 
 // --- cleanup zero-byte files at startup to avoid invalid files lingering ---
 try {
@@ -157,6 +185,57 @@ app.delete('/api/files/:name', (req, res) => {
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'not found' });
   try {
     fs.unlinkSync(filePath);
+
+    // Also remove any keymap entries referencing this filename and delete files saved by document server under the key
+    try {
+      const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+      if (fs.existsSync(keyMapFile)) {
+        let map = {};
+        try { map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}'); } catch (e) { map = {}; }
+        let changed = false;
+        for (const k of Object.keys(map)) {
+          if (map[k] === name) {
+            // remove mapping
+            delete map[k];
+            changed = true;
+            // attempt to delete potential saved files under the key
+            const candidates = [
+              path.join(FILE_DIR, k),
+              path.join(FILE_DIR, `${k}.docx`),
+              path.join(FILE_DIR, `${k}.pdf`),
+              path.join(FILE_DIR, `${k}.pptx`),
+              path.join(FILE_DIR, `${k}.xlsx`)
+            ];
+            candidates.forEach(p => {
+              try {
+                if (fs.existsSync(p)) {
+                  fs.unlinkSync(p);
+                  console.log('Removed associated key-file:', p);
+                }
+              } catch (e) {
+                console.warn('Failed to remove associated key-file', p, e.message);
+              }
+            });
+          }
+        }
+        if (changed) {
+          try { fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2)); } catch (e) { console.warn('Failed to persist keymap after delete:', e.message); }
+        }
+      }
+
+      // increment version for this filename so future document.key will differ
+      try {
+        const versions = loadJsonSafe(NAME_VERSIONS_FILE);
+        versions[name] = (versions[name] || 0) + 1;
+        saveJsonSafe(NAME_VERSIONS_FILE, versions);
+        console.log('Incremented name version for deleted file', name, versions[name]);
+      } catch (e) {
+        console.warn('Failed to increment name version on delete:', e.message);
+      }
+    } catch (e) {
+      console.warn('Failed to cleanup keymap for deleted file:', e.message);
+    }
+
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -205,9 +284,22 @@ app.post('/onlyoffice/webhook', (req, res) => {
     
     if (status === 2 && url) {
       // Document Server has saved the document, download and save it
-      const fileName = key || `document_${Date.now()}.docx`;
+      const fileNameFromKeymap = (function() {
+        try {
+          const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+          if (fs.existsSync(keyMapFile)) {
+            const map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}');
+            if (map && map[key]) return map[key];
+          }
+        } catch (e) {
+          console.warn('Failed to read keymap.json:', e.message);
+        }
+        return null;
+      })();
+
+      const fileName = fileNameFromKeymap ? fileNameFromKeymap : (key ? `${key}.docx` : `document_${Date.now()}.docx`);
       const filePath = path.join(FILE_DIR, fileName);
-      
+
       console.log(`Downloading saved document from ${url} to ${filePath}`);
       
       // Check if URL is local file (starts with file:// or /)
@@ -250,7 +342,7 @@ app.post('/onlyoffice/webhook', (req, res) => {
             // Save the file
             fs.writeFileSync(filePath, response.data);
             console.log(`Document saved successfully to ${filePath}, size: ${response.data.length} bytes`);
-            
+
             // Send success response
             res.json({
               error: 0,
@@ -386,10 +478,32 @@ app.get('/editor/:name', (req, res) => {
   };
 
   // Document Server v7.1+ requires document.key in the config for auth.
-  // Use a stable key per file (sha256 of fileUrl) so the same document reuses the same key.
+  // Use a key that includes a per-filename version so recreating the same filename yields a new key.
   try {
-    const documentKey = crypto.createHash('sha256').update(fileUrl).digest('hex');
+    // load name versions
+    let nameVersions = {};
+    try { nameVersions = loadJsonSafe(NAME_VERSIONS_FILE); } catch (e) { nameVersions = {}; }
+    const ver = nameVersions[name] || 0;
+    const fileUrlForKey = `${fileUrl}?v=${ver}`;
+    const documentKey = crypto.createHash('sha256').update(fileUrlForKey).digest('hex');
     configObj.document.key = documentKey; // place key in document object
+
+    // Persist mapping from documentKey -> original filename so webhook can restore the proper filename
+    try {
+      const keyMapDir = path.join(__dirname, 'data');
+      const keyMapFile = path.join(keyMapDir, 'keymap.json');
+      fs.mkdirSync(keyMapDir, { recursive: true });
+      let map = {};
+      if (fs.existsSync(keyMapFile)) {
+        try { map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}'); } catch (e) { map = {}; }
+      }
+      map[documentKey] = name;
+      // also store version for debugging
+      try { map[`_${documentKey}_v`] = ver; } catch (e) {}
+      fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2));
+    } catch (e) {
+      console.warn('Failed to persist document key mapping:', e.message);
+    }
   } catch (e) {
     console.error('failed to generate document key', e.message);
   }
@@ -530,6 +644,37 @@ app.post('/api/files/create', async (req, res) => {
     // Try to create file from local template files located in backend/templates/
     const templatesDir = path.join(__dirname, 'templates');
     const templateFile = path.join(templatesDir, `blank${ext}`);
+
+    // Remove any stale keymap entries that reference this filename so recreated files
+    // do not pick up older saved content from Document Server keyed files.
+    try {
+      const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+      if (fs.existsSync(keyMapFile)) {
+        let map = {};
+        try { map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}'); } catch (e) { map = {}; }
+        let changed = false;
+        for (const k of Object.keys(map)) {
+          if (map[k] === finalName) {
+            delete map[k];
+            changed = true;
+            // also remove any files saved under the key
+            const candidates = [
+              path.join(FILE_DIR, k),
+              path.join(FILE_DIR, `${k}.docx`),
+              path.join(FILE_DIR, `${k}.pdf`),
+              path.join(FILE_DIR, `${k}.pptx`),
+              path.join(FILE_DIR, `${k}.xlsx`)
+            ];
+            candidates.forEach(p => {
+              try { if (fs.existsSync(p)) { fs.unlinkSync(p); console.log('Removed stale key-file during create cleanup:', p); } } catch (e) { /* ignore */ }
+            });
+          }
+        }
+        if (changed) fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2));
+      }
+    } catch (e) {
+      console.warn('Failed to clean keymap during create:', e.message);
+    }
 
     try {
       if (fs.existsSync(templateFile)) {

@@ -11,6 +11,9 @@ const HomePage = ({ isAdminLoggedIn }) => {
   const [newFileFormat, setNewFileFormat] = useState('docx');
   const { t } = useTranslation();
 
+  // use contextual message API to avoid static message warning
+  const [messageApi, contextHolder] = message.useMessage();
+
   // pagination state
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(5);
@@ -99,7 +102,7 @@ const HomePage = ({ isAdminLoggedIn }) => {
         setTotal(0);
       }
     } catch (error) {
-      message.error(t('Failed to fetch files'));
+      messageApi.error(t('Failed to fetch files'));
     } finally {
       setLoading(false);
     }
@@ -114,7 +117,7 @@ const HomePage = ({ isAdminLoggedIn }) => {
       // Ensure filename has selected extension
       let finalName = newFileName.trim();
       if (!finalName) {
-        message.error(t('Please enter a file name'));
+        messageApi.error(t('Please enter a file name'));
         return;
       }
       const ext = newFileFormat.startsWith('.') ? newFileFormat : `.${newFileFormat}`;
@@ -128,9 +131,9 @@ const HomePage = ({ isAdminLoggedIn }) => {
       setNewFileFormat('docx');
       // refresh current page
       fetchFiles(page, perPage);
-      message.success(t('File created successfully'));
+      messageApi.success(t('File created successfully'));
     } catch (error) {
-      message.error(t('Failed to create file'));
+      messageApi.error(t('Failed to create file'));
     }
   };
 
@@ -153,10 +156,10 @@ const HomePage = ({ isAdminLoggedIn }) => {
       setPage(1);
       fetchFiles(1, perPage);
       onSuccess && onSuccess(resp.data);
-      message.success(`${file.name} ${t('File uploaded successfully')}`);
+      messageApi.success(`${file.name} ${t('File uploaded successfully')}`);
     } catch (error) {
       onError && onError(error);
-      message.error(`${file.name} ${t('File upload failed')}`);
+      messageApi.error(`${file.name} ${t('File upload failed')}`);
     }
   };
 
@@ -197,9 +200,9 @@ const HomePage = ({ isAdminLoggedIn }) => {
       await axios.delete(`/api/files/${fileName}`);
       // refresh current page
       fetchFiles(page, perPage);
-      message.success(t('File deleted successfully'));
+      messageApi.success(t('File deleted successfully'));
     } catch (error) {
-      message.error(t('Failed to delete file'));
+      messageApi.error(t('Failed to delete file'));
     }
   };
 
@@ -215,9 +218,9 @@ const HomePage = ({ isAdminLoggedIn }) => {
       setSelectedRowKeys([]);
       setPage(1);
       fetchFiles(1, perPage);
-      message.success(t('Selected files deleted'));
+      messageApi.success(t('Selected files deleted'));
     } catch (error) {
-      message.error(t('Failed to delete selected files'));
+      messageApi.error(t('Failed to delete selected files'));
     } finally {
       setLoading(false);
     }
@@ -239,6 +242,7 @@ const HomePage = ({ isAdminLoggedIn }) => {
 
   return (
     <div>
+      {contextHolder}
       <Space style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={showModal}>
           {t('New File')}

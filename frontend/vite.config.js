@@ -4,17 +4,19 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 3000,
-    proxy: (() => {
-      const backend = process.env.VITE_BACKEND_URL || process.env.BACKEND_URL || 'http://127.0.0.1:4000'
-      // when running inside docker compose, use service name
-      const containerBackend = 'http://backend:4000'
-      const target = (process.env.NODE_ENV === 'production') ? backend : (process.env.IN_DOCKER === '1' ? containerBackend : backend)
-      return {
-        '/api': target,
-        '/files': target,
-        '/editor': target
-      }
-    })()
+    host: true,
+    port: Number(process.env.VITE_DEV_PORT || 3000),
+    // Configure HMR client connection (browser-side). Set VITE_HMR_CLIENT_PORT to the
+    // external port that browsers use to access the frontend (e.g. 8390). This prevents
+    // Vite's HMR client from attempting to connect to the wrong hard-coded port.
+    hmr: {
+      clientPort: Number(process.env.VITE_HMR_CLIENT_PORT || process.env.VITE_DEV_PORT || 3000),
+      protocol: process.env.VITE_HMR_PROTOCOL || 'ws'
+    },
+    open: false,
+    proxy: {
+      // proxy to backend when developing locally
+      '/api': process.env.VITE_PROXY_TARGET || 'http://localhost:4000'
+    }
   }
 })

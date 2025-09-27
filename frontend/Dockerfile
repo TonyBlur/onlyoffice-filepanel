@@ -6,6 +6,6 @@ COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund --legacy-peer-deps
 # copy project sources (do not copy host node_modules)
 COPY . .
-EXPOSE 3000
+EXPOSE ${DEV_PORT:-3000}
 # project uses react-scripts; use npm start
 CMD ["npm", "start"]

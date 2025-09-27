@@ -6,7 +6,6 @@ dist
 /backend/data/
 
 # Docker
-*.env
 docker-compose.override.yml
 
 # IDEs

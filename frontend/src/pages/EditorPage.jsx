@@ -31,10 +31,20 @@ const EditorPage = () => {
         setError('');
         
         // 获取JWT token和编辑器配置
-        // 注意：在开发环境 CRA 会拦截 /editor/* 并返回 SPA index，因此必须直接请求后端（端口 4000）以获取实际编辑器 HTML
-        const backendHost = window.location.hostname || 'localhost';
-        const backendPort = 4000;
-        const backendUrl = `${window.location.protocol}//${backendHost}:${backendPort}`;
+        // 后端地址优先从构建时环境变量（Vite: import.meta.env.VITE_BACKEND_URL）或运行时注入的 window.__BACKEND_URL__ 获取，
+        // 否则回退到当前 origin（相对路径）。避免在代码中写死端口导致 docker-compose 修改端口后失效。
+        let backendUrl = '';
+        try {
+          // Vite 环境变量（在开发/构建时注入）
+          if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL) {
+            backendUrl = import.meta.env.VITE_BACKEND_URL;
+          }
+        } catch (e) {
+          // ignore
+        }
+        if (!backendUrl && window.__BACKEND_URL__) backendUrl = window.__BACKEND_URL__;
+        if (!backendUrl) backendUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
+
         const response = await fetch(`${backendUrl}/editor/${encodeURIComponent(name)}?user=${encodeURIComponent(userMode)}`);
         
         if (!response.ok) {
