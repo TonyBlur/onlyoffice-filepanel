@@ -25,7 +25,6 @@
 - `DOC_SERVER_URL`：OnlyOffice Document Server 在浏览器可访问的 URL（示例：`http://localhost`）。
 - `DOC_SERVER_JWT_SECRET`：与 Document Server 共享的 JWT 密钥，用于签名编辑器配置。
 - `DOC_SERVER_INTERNAL_HOST`（可选）：当 Document Server 在容器内或不同网络，需要一个 Document Server 从后端访问后端文件的内部地址，例如 `host.docker.internal:4000` 或 `backend:4000`。
-- `DOC_SERVER_INTERNAL`（可选）：设为 `true` 时启用内部 host 回退逻辑。
 - `ADMIN_PASSWORD`：管理员登录密码（测试用）。
 - `PORT`：后端监听端口（默认 4000）。
 

@@ -25,7 +25,6 @@ This project does NOT include ONLYOFFICE Document Server; you need to deploy it 
 - `DOC_SERVER_URL` — URL reachable by end-users to load Document Server frontend assets (e.g. `http://docs.example.com`).
 - `DOC_SERVER_JWT_SECRET` — JWT secret shared between backend and Document Server.
 - `DOC_SERVER_INTERNAL_HOST` (optional) — internal address that Document Server can use to reach backend (e.g. `host.docker.internal:4000` or `backend:4000`).
-- `DOC_SERVER_INTERNAL` (optional) — boolean flag; when true and no host provided a default internal host is used.
 - `ADMIN_PASSWORD` — simple admin password used by the example login endpoint.
 - `PORT` — backend listen port (default 4000).
 

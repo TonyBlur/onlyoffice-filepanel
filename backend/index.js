@@ -27,10 +27,10 @@ const NAME_VERSIONS_FILE = path.join(META_DIR, 'nameVersions.json');
 const KEYMAP_FILE = path.join(META_DIR, 'keymap.json');
 const DOC_SERVER_URL = process.env.DOC_SERVER_URL || 'http://localhost:80';
 const DOC_SERVER_JWT_SECRET = process.env.DOC_SERVER_JWT_SECRET || 'hUQTo541dF2UjKzO56Ux9jHOD62csevJ';
-// When Document Server runs in Docker, it may need a different host to reach this backend.
-// Set DOC_SERVER_INTERNAL=true and DOC_SERVER_INTERNAL_HOST to an address accessible from the Document Server, e.g. "host.docker.internal:4000" or "backend:4000" in the same Docker network.
-const DOC_SERVER_INTERNAL = process.env.DOC_SERVER_INTERNAL === 'true' || !!process.env.DOC_SERVER_INTERNAL;
-const DOC_SERVER_INTERNAL_HOST = process.env.DOC_SERVER_INTERNAL_HOST || (DOC_SERVER_INTERNAL ? 'host.docker.internal:4000' : null);
+// Use a single environment variable DOC_SERVER_INTERNAL_HOST to specify an address
+// that Document Server should use to reach this backend (e.g. "http://192.168.23.100:4000" or "http://backend:4000").
+// If not set, backend will use the external host as seen by the browser.
+const DOC_SERVER_INTERNAL_HOST = process.env.DOC_SERVER_INTERNAL_HOST || null;
 // Ensure file directory exists at startup
 try {
   fs.mkdirSync(FILE_DIR, { recursive: true });
@@ -428,20 +428,19 @@ app.get('/editor/:name', (req, res) => {
   let browserUrl = externalHost;
   
   if (DOC_SERVER_INTERNAL_HOST) {
-    // DOC_SERVER_INTERNAL_HOST may include port, e.g. host.docker.internal:4000 or backend:4000
+    // DOC_SERVER_INTERNAL_HOST may include protocol and port, e.g. http://host.docker.internal:4000 or http://backend:4000
     const hostWithProto = DOC_SERVER_INTERNAL_HOST.startsWith('http') ? DOC_SERVER_INTERNAL_HOST : `http://${DOC_SERVER_INTERNAL_HOST}`;
     // Ensure no trailing slash
     const hostNoSlash = hostWithProto.replace(/\/$/, '');
     downloadUrl = `${hostNoSlash}/files/${encodeURIComponent(name)}`;
     callbackUrl = `${hostNoSlash}/onlyoffice/webhook`;
     // browserUrl remains external; docserver should use internal host for server-side operations
-  } else if (DOC_SERVER_INTERNAL) {
-    // Fallback to host.docker.internal with port 4000 when DOC_SERVER_INTERNAL is truthy but no host specified
-    const hostNoSlash = 'http://host.docker.internal:4000';
-    downloadUrl = `${hostNoSlash}/files/${encodeURIComponent(name)}`;
-    callbackUrl = `${hostNoSlash}/onlyoffice/webhook`;
+  } else {
+    // default to using the external host (what the browser sees)
+    downloadUrl = fileUrl;
+    callbackUrl = `${externalHost}/onlyoffice/webhook`;
   }
-  
+
   console.log('Editor URLs:', { externalHost, downloadUrl, callbackUrl, browserUrl, docServer });
 
   // Build editor config as an object so we can sign it when JWT secret is provided
