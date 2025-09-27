@@ -167,6 +167,25 @@ app.get('/files/:name', (req, res) => {
   if (!path.extname(name) && name.includes('document')) {
     contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   }
+
+  // Add strong no-cache headers and ETag to avoid caches serving stale content
+  try {
+    const st = fs.statSync(filePath);
+    const etag = `${st.size}-${st.mtimeMs}`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Last-Modified', new Date(st.mtimeMs).toUTCString());
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // If client has matching ETag, respond 304 Not Modified
+    const inm = req.headers['if-none-match'];
+    if (inm && inm === etag) {
+      return res.status(304).end();
+    }
+  } catch (e) {
+    // ignore stat failures
+  }
   
   if (asDownload) {
     res.setHeader('Content-Type', contentType);
@@ -313,6 +332,14 @@ app.post('/onlyoffice/webhook', (req, res) => {
           fs.writeFileSync(filePath, fileData);
           console.log(`Document saved successfully to ${filePath}`);
           
+          // increment name version so future downloads use new v param
+          try {
+            const versions = loadJsonSafe(NAME_VERSIONS_FILE);
+            versions[fileName] = (versions[fileName] || 0) + 1;
+            saveJsonSafe(NAME_VERSIONS_FILE, versions);
+            console.log('Incremented name version after webhook save (local):', fileName, versions[fileName]);
+          } catch (e) { console.warn('Failed to increment name version after local save:', e.message); }
+
           res.json({
             error: 0,
             message: 'Document saved successfully'
@@ -342,6 +369,14 @@ app.post('/onlyoffice/webhook', (req, res) => {
             // Save the file
             fs.writeFileSync(filePath, response.data);
             console.log(`Document saved successfully to ${filePath}, size: ${response.data.length} bytes`);
+
+            // increment name version so future downloads use new v param
+            try {
+              const versions = loadJsonSafe(NAME_VERSIONS_FILE);
+              versions[fileName] = (versions[fileName] || 0) + 1;
+              saveJsonSafe(NAME_VERSIONS_FILE, versions);
+              console.log('Incremented name version after webhook save:', fileName, versions[fileName]);
+            } catch (e) { console.warn('Failed to increment name version after save:', e.message); }
 
             // Send success response
             res.json({
@@ -439,6 +474,18 @@ app.get('/editor/:name', (req, res) => {
     // default to using the external host (what the browser sees)
     downloadUrl = fileUrl;
     callbackUrl = `${externalHost}/onlyoffice/webhook`;
+  }
+
+  // Append version query param from nameVersions to force fresh fetch when file changed
+  try {
+    const nameVersions = loadJsonSafe(NAME_VERSIONS_FILE) || {};
+    const ver = nameVersions[name] || 0;
+    const sep = downloadUrl.includes('?') ? '&' : '?';
+    downloadUrl = `${downloadUrl}${sep}v=${ver}`;
+    // also reflect in callbackUrl if desired (not strictly necessary)
+    callbackUrl = `${callbackUrl}`;
+  } catch (e) {
+    console.warn('Failed to append version to downloadUrl:', e.message);
   }
 
   console.log('Editor URLs:', { externalHost, downloadUrl, callbackUrl, browserUrl, docServer });

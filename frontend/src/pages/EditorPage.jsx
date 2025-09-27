@@ -193,6 +193,36 @@ const EditorPage = () => {
     if (docEditorRef.current) return;
 
     try {
+      // Attach compatibility event handlers for OnlyOffice
+      try {
+        docConfig.editorConfig = docConfig.editorConfig || {};
+        docConfig.editorConfig.events = docConfig.editorConfig.events || {};
+
+        const refreshHandler = function () {
+          try {
+            // If instance exists and supports refreshFile, call it; otherwise reload page as fallback
+            if (docEditorRef.current && typeof docEditorRef.current.refreshFile === 'function') {
+              try { docEditorRef.current.refreshFile(); return; } catch (e) { /* ignore */ }
+            }
+            // Fallback: reload whole page to force fresh editor/file
+            window.location.reload();
+          } catch (e) {
+            console.warn('refreshHandler failed, reloading page', e);
+            window.location.reload();
+          }
+        };
+
+        // New recommended event
+        docConfig.editorConfig.events.onRequestRefreshFile = refreshHandler;
+        // Backwards-compatible deprecated event
+        docConfig.editorConfig.events.onOutdatedVersion = function () {
+          console.warn("Obsolete: onOutdatedVersion called, delegating to onRequestRefreshFile");
+          refreshHandler();
+        };
+      } catch (e) {
+        console.warn('Failed to attach compatibility events to docConfig:', e);
+      }
+
       docEditorRef.current = new DocsAPI.DocEditor('editor-container', docConfig);
     } catch (err) {
       console.error('Failed to initialize editor:', err);
