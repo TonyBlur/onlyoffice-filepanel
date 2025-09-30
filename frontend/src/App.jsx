@@ -49,7 +49,7 @@ function App() {
   const { i18n, t } = useTranslation();
   const [isLoginModalVisible, setIsLoginModalVisible] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [currentTheme, setCurrentTheme] = useState(localStorage.getItem('theme') || 'system');
   const [isSystemDark, setIsSystemDark] = useState(() => window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const location = useLocation(); // Initialize useLocation
   const navigate = useNavigate(); // Initialize useNavigate
