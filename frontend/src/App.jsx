@@ -27,19 +27,20 @@ const useStyles = createStyles(({ token }) => ({
   },
   content: {
     padding: 20,
-    minHeight: 'calc(100vh - var(--app-header-height))',
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
   },
   fullHeightContent: {
-    padding: 0, // Remove padding for full screen editor
-    minHeight: 'calc(100vh - var(--app-header-height))', // Adjust minHeight for full editor space
+    padding: 0,
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
   },
   footer: {
-    textAlign: 'center',
-    color: token.colorTextSecondary,
+    textAlign: 'right',
+    color: 'var(--text)',
+    paddingRight: 20,
   },
 }));
 
@@ -163,7 +164,7 @@ function App() {
           </Content>
           {!isEditorPage && (
             <Footer className={styles.footer}>
-              {t('OnlyOffice File Panel')} ©2025 Created by Your Name
+              {t('OnlyOffice File Panel')} v{window.APP_VERSION} ©2025 Created by TonyBlu
             </Footer>
           )}
         </Layout>

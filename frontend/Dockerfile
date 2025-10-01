@@ -1,4 +1,6 @@
 FROM node:18
+ARG APP_VERSION
+ENV REACT_APP_VERSION=$APP_VERSION
 WORKDIR /app
 # copy only package files then install ALL dependencies inside container
 COPY package.json package-lock.json* ./

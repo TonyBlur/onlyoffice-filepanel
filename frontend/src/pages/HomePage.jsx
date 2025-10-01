@@ -45,9 +45,9 @@ const HomePage = ({ isAdminLoggedIn }) => {
     const estimatedRowHeight = 56;
 
     const usable = Math.max(200, availableHeight - headerHeight - paginationHeight - 24);
-    // subtract 2 to avoid forcing user to scroll the page for controls/spacing
+    // subtract 3 to avoid forcing user to scroll the page for controls/spacing
     const computed = Math.floor(usable / estimatedRowHeight);
-    const newPerPage = Math.max(3, Math.max(0, computed - 2));
+    const newPerPage = Math.max(3, Math.max(0, computed - 3));
 
     // only update if changed to avoid re-renders
     if (newPerPage !== perPage || force) {

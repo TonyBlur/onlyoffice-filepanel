@@ -18,9 +18,11 @@ services:
       # container in this environment is mapped to host ports 80/443, so use http://localhost
       - DOC_SERVER_URL=${DOC_SERVER_URL:-http://localhost:8380}
       # DOC_SERVER_INTERNAL_HOST is the in-network address (if backend needs to request the docserver from inside compose)
-      - DOC_SERVER_INTERNAL_HOST=${DOC_SERVER_INTERNAL_HOST:-http://onlyoffice-documentserver:80}
+      - DOC_SERVER_INTERNAL_HOST=${DOC_SERVER_INTERNAL_HOST:-http://host.docker.internal:4000}
       # JWT secret used to sign editor config for OnlyOffice Document Server
       - DOC_SERVER_JWT_SECRET=${DOC_SERVER_JWT_SECRET:-hUQTo541dF2UjKzO56Ux9jHOD62csevJ}
+      # Admin password for login
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
     ports:
       - "${BACKEND_EXTERNAL_PORT:-4000}:${BACKEND_INTERNAL_PORT:-4000}"
     volumes:
@@ -29,7 +31,10 @@ services:
       - onlyoffice-network
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        APP_VERSION: ${npm_package_version:-unknown} # Fallback to unknown if not set
     environment:
       - IN_DOCKER=1
       # Single place to set frontend external/internal ports. Change FRONTEND_EXTERNAL_PORT once to update mapping and HMR/WDS targets.

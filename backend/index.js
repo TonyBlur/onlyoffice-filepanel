@@ -64,23 +64,24 @@ try { saveJsonSafe(KEYMAP_FILE, loadJsonSafe(KEYMAP_FILE)); } catch (e) {}
 try { saveJsonSafe(NAME_VERSIONS_FILE, loadJsonSafe(NAME_VERSIONS_FILE)); } catch (e) {}
 
 // --- cleanup zero-byte files at startup to avoid invalid files lingering ---
-try {
-  const startupFiles = fs.readdirSync(FILE_DIR || '.');
-  startupFiles.forEach(f => {
-    const p = path.join(FILE_DIR, f);
-    try {
-      const st = fs.statSync(p);
-      if (st && st.size === 0) {
-        fs.unlinkSync(p);
-        console.warn('Removed zero-size file at startup:', p);
-      }
-    } catch (e) {
-      // ignore
-    }
-  });
-} catch (e) {
-  // ignore
-}
+// --- cleanup zero-byte files at startup to avoid invalid files lingering ---
+// try {
+//   const startupFiles = fs.readdirSync(FILE_DIR || '.');
+//   startupFiles.forEach(f => {
+//     const p = path.join(FILE_DIR, f);
+//     try {
+//       const st = fs.statSync(p);
+//       if (st && st.size === 0) {
+//         fs.unlinkSync(p);
+//         console.warn('Removed zero-size file at startup:', p);
+//       }
+//     } catch (e) {
+//       // ignore
+//     }
+//   });
+// } catch (e) {
+//   // ignore
+// }
 
 // Configure multer for multipart/form-data uploads
 const storage = multer.diskStorage({
