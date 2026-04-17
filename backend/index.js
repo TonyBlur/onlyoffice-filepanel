@@ -83,7 +83,7 @@ try { saveJsonSafe(NAME_VERSIONS_FILE, loadJsonSafe(NAME_VERSIONS_FILE)); } catc
 //   // ignore
 // }
 
-// Configure multer for multipart/form-data uploads
+// Configure multer for multipart/form-data uploads (standard full-file upload)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, FILE_DIR);
@@ -95,6 +95,9 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage });
+
+// Multer memory storage for chunked uploads (we will append buffers)
+const uploadMemory = multer({ storage: multer.memoryStorage() });
 
 // Middleware to check auth from cookie
 const checkAuth = (req, res, next) => {
@@ -133,17 +136,25 @@ app.get('/api/files', checkAuth, (req, res) => {
     // sort by mtime desc
     items.sort((a,b) => b.mtimeMs - a.mtimeMs);
 
+    // search filter
+    const searchQuery = req.query.search || '';
+    let filteredItems = items;
+    if (searchQuery) {
+      const lowerSearch = searchQuery.toLowerCase();
+      filteredItems = items.filter(f => f.name.toLowerCase().includes(lowerSearch));
+    }
+
     const role = (req.query.role || 'guest');
     // parse pagination params
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const defaultPerPage = role === 'admin' ? 20 : 5;
     const perPage = Math.max(1, parseInt(req.query.perPage, 10) || defaultPerPage);
 
-    const total = items.length;
+    const total = filteredItems.length;
     const totalPages = Math.max(1, Math.ceil(total / perPage));
 
     const start = (page - 1) * perPage;
-    const paged = items.slice(start, start + perPage);
+    const paged = filteredItems.slice(start, start + perPage);
 
     return res.json({
       items: paged,
@@ -291,6 +302,66 @@ app.post('/api/files/upload', upload.single('file'), (req, res) => {
     return res.json({ ok: true, name: savedName });
   } catch (e) {
     console.error('Upload error:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Chunked upload endpoint: accepts a single chunk (multipart form field 'chunk')
+// Expects form fields: filename, index (0-based), totalChunks
+app.post('/api/files/upload-chunk', uploadMemory.single('chunk'), (req, res) => {
+  try {
+    const { filename, index, totalChunks } = req.body || {};
+    if (!filename) return res.status(400).json({ error: 'missing filename' });
+    if (typeof index === 'undefined') return res.status(400).json({ error: 'missing index' });
+    const idx = parseInt(index, 10);
+    const total = totalChunks ? parseInt(totalChunks, 10) : null;
+
+    const safeName = path.basename(filename);
+    const destPath = path.join(FILE_DIR, safeName);
+
+    // ensure directory exists
+    try { fs.mkdirSync(FILE_DIR, { recursive: true }); } catch (e) {}
+
+    // If this is the first chunk (index === 0) create/truncate the file
+    if (idx === 0) {
+      try { fs.writeFileSync(destPath, Buffer.alloc(0)); } catch (e) { /* ignore */ }
+    }
+
+    if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'missing chunk' });
+
+    // Append the chunk buffer to the destination file
+    try {
+      fs.appendFileSync(destPath, req.file.buffer);
+    } catch (e) {
+      console.error('Failed to append chunk:', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+
+    // If client provided total and this is the last chunk, return completed response
+    if (total !== null && idx === total - 1) {
+      return res.json({ ok: true, name: safeName, completed: true });
+    }
+
+    // Otherwise acknowledge receipt of chunk
+    return res.json({ ok: true, name: safeName, index: idx });
+  } catch (e) {
+    console.error('Chunk upload error:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Cancel a chunked upload and remove partial file
+app.post('/api/files/upload-chunk/cancel', (req, res) => {
+  try {
+    const filename = req.body && req.body.filename || req.query && req.query.filename;
+    if (!filename) return res.status(400).json({ error: 'missing filename' });
+    const safeName = path.basename(filename);
+    const destPath = path.join(FILE_DIR, safeName);
+    if (fs.existsSync(destPath)) {
+      try { fs.unlinkSync(destPath); } catch (e) { console.warn('Failed to remove partial file:', e.message); }
+    }
+    return res.json({ ok: true });
+  } catch (e) {
     return res.status(500).json({ error: e.message });
   }
 });

@@ -26,21 +26,29 @@ const useStyles = createStyles(({ token }) => ({
     color: token.colorPrimary,
   },
   content: {
-    padding: 20,
+    padding: 0,
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
+    minHeight: 0,
+    overflow: 'hidden',
   },
   fullHeightContent: {
     padding: 0,
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
+    minHeight: 0,
+    overflow: 'hidden',
   },
   footer: {
     textAlign: 'right',
     color: 'var(--text)',
-    paddingRight: 20,
+    padding: '4px 8px',
+    height: 'auto',
+    lineHeight: 1.2,
+    fontSize: 12,
+    flexShrink: 0,
   },
 }));
 
@@ -122,7 +130,7 @@ function App() {
     items: [
       { key: 'light', label: t('Light Mode'), icon: <SunOutlined />, onClick: () => handleThemeChange('light') },
       { key: 'dark', label: t('Dark Mode'), icon: <MoonOutlined />, onClick: () => handleThemeChange('dark') },
-      { key: 'system', label: t('System Mode'), icon: <DesktopOutlined />, onClick: () => handleThemeChange('system') },
+      { key: 'system', label: t('System'), icon: <DesktopOutlined />, onClick: () => handleThemeChange('system') },
     ],
   }), [t]);
 
@@ -134,7 +142,7 @@ function App() {
 
   return (
     <ThemeProvider appearance={currentTheme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : currentTheme}>
-        <Layout style={{ minHeight: '100vh', '--app-header-height': '56px' }}>
+        <Layout style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', '--app-header-height': '56px' }}>
           <Header className={styles.header}>
             {isEditorPage ? (
               <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>{t('Back')}</Button>

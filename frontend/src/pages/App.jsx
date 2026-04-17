@@ -74,9 +74,13 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Configure axios to include credentials
+  // Configure axios to include credentials and set base URL
   useEffect(() => {
     axios.defaults.withCredentials = true
+    // Set base URL from environment variable for production builds
+    if (process.env.REACT_APP_BACKEND_URL) {
+      axios.defaults.baseURL = process.env.REACT_APP_BACKEND_URL
+    }
   }, [])
 
   // Fetch files with auth
