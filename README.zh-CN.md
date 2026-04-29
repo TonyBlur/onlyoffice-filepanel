@@ -1,4 +1,4 @@
-# OnlyOffice File Panel<br> — OnlyOffice极简文件管理面板
+# OnlyOffice File Panel<br> — OnlyOffice 极简文件管理面板
 
 [English](./README.md) | 简体中文
 
@@ -6,82 +6,92 @@
 - 在面板中列出、上传、创建、删除 Office 文档（docx、pptx、xlsx、pdf 等）。
 - 通过 OnlyOffice Document Server 打开并在线编辑文档（使用 JWT 保护）。
 - 管理员可进行批量删除等操作。
+- 支持拖拽上传文件和文件搜索。
 
 ## 🗂️ 项目结构
-- `backend/` — Node.js (Express) 后端：文件管理 API、/editor/:name 页面、OnlyOffice webhook 等。
-- `frontend/` — React 前端：文件列表、编辑器页面、国际化支持（i18n）。
-- `files_data:/app/data/files` 或 `backend/data/files` — 文件的持久化存储（映射到主机卷）。
-- `backend/templates/` — 新建文件的空白模板（请使用真实 Office 二进制文件，避免 HTML 占位文件）。
-- `docker-compose.yml` — 启动 backend、frontend 的编排。
+```
+onlyoffice-filepanel/
+├── server/          # Express 后端：文件管理 API、OnlyOffice webhook 等
+│   ├── data/        # 文件持久化存储（挂载为主机卷）
+│   └── templates/   # 新建文件用的空白模板
+├── web/             # React 18 + Ant Design 5 前端
+├── server.js        # 统一入口（同时提供 API 和静态前端）
+├── package.json     # 合并后的依赖
+├── Dockerfile       # 多阶段构建 → 单一镜像
+└── docker-compose.yml  # 单服务，端口 4000
+```
 
 ## 🚀 快速开始
 
-本项目的 docker-compose 不包含 ONLYOFFICE Document Server，需要单独部署并设置所需的环境变量。
+本项目**不包含** ONLYOFFICE Document Server，需要单独部署并配置相关环境变量。
 
-- 推荐使用 Docker + docker-compose 来运行完整环境。
-- 如果本地开发：需要 Node.js（建议 v18+）、npm 或 pnpm。
+- 推荐使用 Docker + docker-compose 运行完整环境。
+- 本地开发：需要 Node.js（v18+）和 npm。
 
-### 环境变量
-- `DOC_SERVER_URL`：OnlyOffice Document Server 在浏览器可访问的 URL（示例：`http://localhost`）。
-- `DOC_SERVER_JWT_SECRET`：与 Document Server 共享的 JWT 密钥，用于签名编辑器配置。
-- `DOC_SERVER_INTERNAL_HOST`（可选）：当 Document Server 在容器内或不同网络，需要一个 Document Server 从后端访问后端文件的内部地址，例如 `host.docker.internal:4000` 或 `backend:4000`。
-- `ADMIN_PASSWORD`：管理员登录密码（测试用）。
-- `PORT`：后端监听端口（默认 4000）。
+### 环境变量说明
+| 变量 | 说明 |
+|---|---|
+| `DOC_SERVER_URL` | 浏览器可访问的 Document Server 地址（如 `http://docs.example.com`） |
+| `DOC_SERVER_JWT_SECRET` | 与 Document Server 共享的 JWT 密钥 |
+| `DOC_SERVER_INTERNAL_HOST` | *（可选）* Document Server 用于回调本应用的内部地址（如 `http://host.docker.internal:4000`） |
+| `ADMIN_PASSWORD` | 管理员登录密码 |
+| `PORT` | 应用监听端口（默认 `4000`） |
+| `APP_EXTERNAL_PORT` | docker-compose 中映射到宿主机的端口（默认 `4000`） |
+| `HOST_FILES_PATH` | 文件卷的宿主机路径（默认使用命名卷 `files_data`） |
 
 ### 模板说明
-- `backend/templates/` 目录应包含针对常见扩展名的空白模板文件：`blank.docx`、`blank.pptx`、`blank.xlsx`、`blank.pdf`。
-- 请使用真实的 Office 二进制文件（docx/pptx/xlsx 为 zip/PK 格式），不要使用示例网站的 HTML 占位文件；否则 OnlyOffice 会提示“file content does not match the file extension” 或显示 HTML 页面。
-- 如果没有模板，后端会在创建 PDF 时生成一个最小 PDF；其它格式会返回错误，提示放置模板文件。
+- 在 `server/templates/` 目录放置对应扩展名的空白模板：`blank.docx`、`blank.pptx`、`blank.xlsx`、`blank.pdf`。
+- 请使用真实的 Office 二进制文件（docx/pptx/xlsx 格式为 ZIP，十六进制开头为 `50 4B`）。**不要使用 HTML 占位文件**，否则 OnlyOffice 会提示扩展名不匹配。
 
-### 使用 Docker Compose
-1. 在仓库根目录，复制或编辑 `.env`（如果有），设置环境变量，例如：
-   DOC_SERVER_URL=http://docserver:80
+### 使用 Docker Compose（推荐）
+1. 复制或创建 `.env` 文件，填入所需变量：
+   ```env
+   DOC_SERVER_URL=http://localhost:8380
    DOC_SERVER_JWT_SECRET=your-secret
    ADMIN_PASSWORD=admin123
-2. 启动（示例）：
+   ```
+2. 启动服务：
+   ```bash
    docker-compose up --build
-3. 打开浏览器访问：
-   - 前端（面板）：http://localhost:3000
-   - 后端 API（开发检查）：http://localhost:4000
+   ```
+3. 浏览器访问 **http://localhost:4000**
 
-### 本地开发（可选）
-- 后端：
-  ```
-  cd backend
-  npm install
-  NODE_ENV=development
-  DOC_SERVER_JWT_SECRET=your-secret node index.js
-  ```
+### 本地开发
+1. 构建前端：
+   ```bash
+   cd web
+   npm install
+   npm run build
+   ```
+2. 从仓库根目录启动服务：
+   ```bash
+   npm install
+   DOC_SERVER_JWT_SECRET=your-secret node server.js
+   ```
+3. 打开 **http://localhost:4000**
 
-- 前端：
-  ```
-  cd frontend
-  npm install
-  npm start
-  ```
-
-（注：前端开发服务器在容器化环境下需要指向后端地址，环境变量 VITE_BACKEND_URL 或 package.json 中 proxy 需要配置为后端地址。）
-
-### 常用 API（后端）
-- `GET /api/files?page=1&perPage=10` — 列表（支持分页）
-- `GET /files/:name` — 下载/直接访问文件
-- `POST /api/files/create { name, format }` — 基于模板创建新文件
-- `POST /api/files/upload` — 上传文件（multipart/form-data，字段名 file）
-- `DELETE /api/files/:name` — 删除文件
-- `POST /api/login { password }` — 管理员登录（设置 cookie）
-- `POST /onlyoffice/webhook` — Document Server 保存回调（由 Document Server 调用）
+   若需要前端热更新，在 `web/` 目录运行 `npm run dev`，并将 Vite 代理指向 `http://localhost:4000`。
 
 ### 安装字体
 请参阅 [安装字体](./Install_Fonts.zh-CN.md)
 
+## 📡 API 接口
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/files?page=1&perPage=10` | 获取文件列表（支持分页） |
+| `GET` | `/files/:name` | 下载/直接访问文件 |
+| `POST` | `/api/files/create` | 基于模板创建新文件 `{ name, format }` |
+| `POST` | `/api/files/upload` | 上传文件（multipart/form-data，字段名 `file`） |
+| `DELETE` | `/api/files/:name` | 删除文件 |
+| `GET` | `/api/editor-config/:name` | 获取签名后的编辑器配置 JSON |
+| `POST` | `/api/login` | 管理员登录 `{ password }` |
+| `POST` | `/onlyoffice/webhook` | Document Server 保存回调 |
+
 ## ❓ 常见问题与排查
-- OnlyOffice 在编辑器中显示 HTML 内容或提示扩展名不匹配：
-  - 检查 `backend/templates` 中对应模板是否为真实 Office 文件（用十六进制查看首字节应为 `50 4B` 表示 zip）。
-- Document Server 下载失败（ECONNREFUSED 到 127.0.0.1:4000）：
-  - 当 Document Server 与后端运行在不同容器或主机时，需设置 `DOC_SERVER_INTERNAL_HOST` 为 Document Server 能访问的地址（如 `host.docker.internal:4000`）。
-- JWT 验证失败：
-  - 确认 `DOC_SERVER_JWT_SECRET` 在后端与 Document Server 配置中一致。
+- **OnlyOffice 显示 HTML 内容或提示扩展名不匹配** — 检查 `server/templates/` 中的模板是否为真实 Office 文件（十六进制开头应为 `50 4B`）。
+- **Document Server 下载文件失败（ECONNREFUSED）** — 设置 `DOC_SERVER_INTERNAL_HOST` 为 Document Server 容器可访问的地址（如 `http://host.docker.internal:4000`）。
+- **JWT 验证失败** — 确认本应用与 Document Server 使用相同的 `DOC_SERVER_JWT_SECRET`。
 
 ## 📜 许可证
-- 本项目采用 MIT 许可证（MIT）。许可证全文见仓库根目录的 `LICENSE` 文件。
-- 版权所有：TonyBlur © 2025
+本项目采用 MIT 许可证。许可证全文见仓库根目录的 `LICENSE` 文件。
+版权所有：TonyBlur © 2025

@@ -4,6 +4,7 @@ import { Layout, Space, Button, Dropdown, Menu } from 'antd';
 import { GlobalToken, ThemeProvider, createStyles, useTheme } from 'antd-style';
 import { MoonOutlined, SunOutlined, DesktopOutlined, GlobalOutlined, UserOutlined, ArrowLeftOutlined } from '@ant-design/icons'; // Import ArrowLeftOutlined and DesktopOutlined
 import { useTranslation } from 'react-i18next';
+import axios from 'axios';
 import EditorPage from './pages/EditorPage';
 import HomePage from './pages/HomePage';
 import LoginPage from './components/LoginPage';
@@ -64,12 +65,19 @@ function App() {
   const navigate = useNavigate(); // Initialize useNavigate
 
   const isEditorPage = location.pathname.startsWith('/editor');
+  const isFullPage = isEditorPage;
 
   useEffect(() => {
     const loggedIn = localStorage.getItem('isAdminLoggedIn') === 'true';
     setIsAdminLoggedIn(loggedIn);
     document.documentElement.setAttribute('data-theme', currentTheme);
   }, [currentTheme]);
+
+  useEffect(() => {
+    if (process.env.REACT_APP_BACKEND_URL) {
+      axios.defaults.baseURL = process.env.REACT_APP_BACKEND_URL;
+    }
+  }, []);
 
   // listen to system theme changes so 'system' mode icon updates
   useEffect(() => {
@@ -143,34 +151,43 @@ function App() {
   return (
     <ThemeProvider appearance={currentTheme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : currentTheme}>
         <Layout style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', '--app-header-height': '56px' }}>
-          <Header className={styles.header}>
-            {isEditorPage ? (
-              <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>{t('Back')}</Button>
+          <Header className="app-header-glass">
+            {isFullPage ? (
+              <button className="glass-icon-btn back-btn" onClick={handleBack}>
+                <ArrowLeftOutlined /> <span className="back-label">{t('Back')}</span>
+              </button>
             ) : (
-              <div className={styles.brand}>{t('OnlyOffice File Panel')}</div>
+              <div className="brand-text">{t('OnlyOffice')} <span>{t('File Panel')}</span></div>
             )}
-            <Space size="middle">
+            <Space size={6} className="header-controls">
               <Dropdown menu={languageMenu} placement="bottomRight">
-                <Button icon={<GlobalOutlined />} />
+                <button className="glass-icon-btn" title={t('Language')}>
+                  <GlobalOutlined />
+                </button>
               </Dropdown>
-              <Dropdown menu={themeMenu} placement="bottomRight" trigger={["click"]}>
-                <Button icon={(() => {
-                  if (currentTheme === 'system') return isSystemDark ? <MoonOutlined /> : <SunOutlined />;
-                  return currentTheme === 'dark' ? <MoonOutlined /> : <SunOutlined />;
-                })()} />
+              <Dropdown menu={themeMenu} placement="bottomRight">
+
+                <button className="glass-icon-btn" title={t('Theme')}>
+                  {(() => {
+                    if (currentTheme === 'system') return isSystemDark ? <MoonOutlined /> : <SunOutlined />;
+                    return currentTheme === 'dark' ? <MoonOutlined /> : <SunOutlined />;
+                  })()}
+                </button>
               </Dropdown>
               <Dropdown menu={adminMenu} placement="bottomRight">
-                <Button icon={<UserOutlined />} type={isAdminLoggedIn ? "primary" : "default"} />
+                <button className={`glass-icon-btn${isAdminLoggedIn ? ' logged-in' : ''}`} title={t('Account')}>
+                  <UserOutlined />
+                </button>
               </Dropdown>
             </Space>
           </Header>
-          <Content className={isEditorPage ? styles.fullHeightContent : styles.content}>
+          <Content className={isFullPage ? styles.fullHeightContent : styles.content}>
             <Routes>
               <Route path="/" element={<HomePage isAdminLoggedIn={isAdminLoggedIn} />} />
               <Route path="/editor/:name" element={<EditorPage />} />
             </Routes>
           </Content>
-          {!isEditorPage && (
+          {!isFullPage && (
             <Footer className={styles.footer}>
               {t('OnlyOffice File Panel')} v{window.APP_VERSION} ©2025 Created by TonyBlu
             </Footer>

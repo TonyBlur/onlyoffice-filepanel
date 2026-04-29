@@ -8,6 +8,9 @@ const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
 const axios = require('axios');
 const multer = require('multer');
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 
 const JWT_SECRET = process.env.DOC_SERVER_JWT_SECRET || 'your-secret-key';
 const COOKIE_NAME = 'auth_token';
@@ -57,6 +60,20 @@ function saveJsonSafe(fp, obj) {
   } catch (e) {
     console.warn('Failed to save JSON', fp, e.message);
   }
+}
+
+// Generate a unique filename by appending (1), (2), etc. if file exists
+function getUniqueFilename(dir, baseName) {
+  const ext = path.extname(baseName);
+  const nameWithoutExt = path.basename(baseName, ext);
+  let candidate = baseName;
+  let counter = 1;
+  while (fs.existsSync(path.join(dir, candidate))) {
+    candidate = `${nameWithoutExt} (${counter})${ext}`;
+    counter++;
+    if (counter > 999) break; // safety limit
+  }
+  return candidate;
 }
 
 // Ensure meta files exist
@@ -133,8 +150,16 @@ app.get('/api/files', checkAuth, (req, res) => {
       };
     });
 
-    // sort by mtime desc
-    items.sort((a,b) => b.mtimeMs - a.mtimeMs);
+    // sort
+    const sortBy = req.query.sortBy || 'mtime';
+    const sortOrder = req.query.sortOrder || 'desc';
+    items.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'name') cmp = a.name.localeCompare(b.name);
+      else if (sortBy === 'size') cmp = a.size - b.size;
+      else cmp = (a.mtimeMs || 0) - (b.mtimeMs || 0);
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
 
     // search filter
     const searchQuery = req.query.search || '';
@@ -206,6 +231,104 @@ app.get('/files/:name', (req, res) => {
   } else {
     res.setHeader('Content-Type', contentType);
     fs.createReadStream(filePath).pipe(res);
+  }
+});
+
+// Rename file
+app.put('/api/files/:name/rename', (req, res) => {
+  try {
+    const name = req.params.name;
+    const { newName } = req.body || {};
+    if (!newName) return res.status(400).json({ error: 'missing newName' });
+
+    const oldPath = path.join(FILE_DIR, name);
+    if (!fs.existsSync(oldPath)) return res.status(404).json({ error: 'not found' });
+
+    const safeNewName = path.basename(newName);
+    const newPath = path.join(FILE_DIR, safeNewName);
+    if (fs.existsSync(newPath)) return res.status(409).json({ error: 'target exists' });
+
+    fs.renameSync(oldPath, newPath);
+
+    // Update keymap references
+    try {
+      const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+      if (fs.existsSync(keyMapFile)) {
+        let map = {};
+        try { map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}'); } catch (e) { map = {}; }
+        let changed = false;
+        for (const k of Object.keys(map)) {
+          if (map[k] === name) {
+            map[k] = safeNewName;
+            changed = true;
+          }
+        }
+        if (changed) fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2));
+      }
+    } catch (e) {
+      console.warn('Failed to update keymap after rename:', e.message);
+    }
+
+    res.json({ ok: true, name: safeNewName });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Duplicate file
+app.post('/api/files/:name/duplicate', (req, res) => {
+  try {
+    const name = req.params.name;
+    const srcPath = path.join(FILE_DIR, name);
+    if (!fs.existsSync(srcPath)) return res.status(404).json({ error: 'not found' });
+
+    const ext = path.extname(name);
+    const baseName = path.basename(name, ext);
+    const dupName = getUniqueFilename(FILE_DIR, `${baseName} (copy)${ext}`);
+    const destPath = path.join(FILE_DIR, dupName);
+
+    fs.copyFileSync(srcPath, destPath);
+
+    // Copy keymap entry if exists
+    try {
+      const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+      if (fs.existsSync(keyMapFile)) {
+        let map = loadJsonSafe(keyMapFile);
+        let changed = false;
+        for (const k of Object.keys(map)) {
+          if (map[k] === name) {
+            // Generate new key for duplicated file
+            const newKey = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            map[newKey] = dupName;
+            changed = true;
+          }
+        }
+        if (changed) saveJsonSafe(keyMapFile, map);
+      }
+    } catch (e) {
+      console.warn('Failed to copy keymap after duplicate:', e.message);
+    }
+
+    res.json({ ok: true, name: dupName });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Download file
+app.get('/api/files/:name/download', (req, res) => {
+  try {
+    const name = req.params.name;
+    const filePath = path.join(FILE_DIR, name);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'not found' });
+
+    const mimeType = mime.getType(filePath) || 'application/octet-stream';
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}"`);
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -316,14 +439,19 @@ app.post('/api/files/upload-chunk', uploadMemory.single('chunk'), (req, res) => 
     const idx = parseInt(index, 10);
     const total = totalChunks ? parseInt(totalChunks, 10) : null;
 
-    const safeName = path.basename(filename);
-    const destPath = path.join(FILE_DIR, safeName);
+    let safeName = path.basename(filename);
+    let destPath = path.join(FILE_DIR, safeName);
 
     // ensure directory exists
     try { fs.mkdirSync(FILE_DIR, { recursive: true }); } catch (e) {}
 
-    // If this is the first chunk (index === 0) create/truncate the file
+    // If this is the first chunk (index === 0) and file exists, auto-rename
     if (idx === 0) {
+      if (fs.existsSync(destPath)) {
+        safeName = getUniqueFilename(FILE_DIR, safeName);
+        destPath = path.join(FILE_DIR, safeName);
+        console.log('Upload file exists, auto-renamed:', filename, '->', safeName);
+      }
       try { fs.writeFileSync(destPath, Buffer.alloc(0)); } catch (e) { /* ignore */ }
     }
 
@@ -582,6 +710,7 @@ app.get('/editor/:name', (req, res) => {
     console.warn('Failed to determine documentType, using default word:', e.message);
   }
   
+  const editorMode = req.query.mode === 'view' ? 'view' : 'edit';
   const configObj = {
     documentType: docType,
     document: {
@@ -591,7 +720,7 @@ app.get('/editor/:name', (req, res) => {
     },
     editorConfig: {
       callbackUrl: callbackUrl,
-      mode: 'edit'
+      mode: editorMode
     }
   };
 
@@ -673,7 +802,7 @@ app.get('/editor/:name', (req, res) => {
         },
         editorConfig: {
           callbackUrl: callbackUrl,
-          mode: 'edit'
+          mode: editorMode
         }
       };
       
@@ -716,9 +845,22 @@ app.get('/editor/:name', (req, res) => {
   const html = `<!doctype html>
   <html>
   <head><meta charset="utf-8"><title>OnlyOffice Editor - ${name}</title>
-  <style>body,html{height:100%;margin:0}#editor{height:100vh}</style>
+  <style>
+    body,html{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+    .editor-header{height:48px;background:#1a1a2e;color:#fff;display:flex;align-items:center;padding:0 16px;gap:12px}
+    .editor-back{color:#fff;text-decoration:none;font-size:14px;display:flex;align-items:center;gap:6px}
+    .editor-back:hover{opacity:.8}
+    .editor-title{font-size:14px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
+    .editor-mode{font-size:12px;padding:4px 10px;background:rgba(255,255,255,.12);border-radius:4px;text-transform:capitalize}
+    #editor{height:calc(100vh - 48px)}
+  </style>
   </head>
   <body>
+  <div class="editor-header">
+    <a href="/" class="editor-back">&#8592; ${editorMode === 'view' ? '返回' : '返回文件列表'}</a>
+    <span class="editor-title">${name}</span>
+    <span class="editor-mode">${editorMode}</span>
+  </div>
   <div id="editor"></div>
   <script src="${docServer}/web-apps/apps/api/documents/api.js"></script>
 
@@ -732,7 +874,12 @@ app.get('/editor/:name', (req, res) => {
     // Expose token explicitly as well
     window.__DOC_CONFIG__ = docConfig;
     window.__DOC_TOKEN__ = ${JSON.stringify(token)};
-    // Frontend is expected to load api.js and call: new DocsAPI.DocEditor('editor', window.__DOC_CONFIG__);
+    // Initialize OnlyOffice DocEditor
+    if (typeof DocsAPI !== 'undefined' && DocsAPI.DocEditor) {
+      new DocsAPI.DocEditor('editor', docConfig);
+    } else {
+      document.getElementById('editor').innerHTML = '<p style="padding:20px;color:red">Failed to load OnlyOffice Document Server API. Please check DOC_SERVER_URL configuration.</p>';
+    }
   </script>
   </body>
   </html>`;
@@ -754,10 +901,14 @@ app.post('/api/files/create', async (req, res) => {
     // ensure directory exists
     fs.mkdirSync(FILE_DIR, { recursive: true });
 
-    const filePath = path.join(FILE_DIR, finalName);
+    let filePath = path.join(FILE_DIR, finalName);
 
-    // If file exists, return conflict
-    if (fs.existsSync(filePath)) return res.status(409).json({ error: 'file exists' });
+    // If file exists, auto-rename with (1), (2), etc.
+    if (fs.existsSync(filePath)) {
+      const uniqueName = getUniqueFilename(FILE_DIR, finalName);
+      filePath = path.join(FILE_DIR, uniqueName);
+      console.log('File exists, auto-renamed:', finalName, '->', uniqueName);
+    }
 
     // Try to create file from local template files located in backend/templates/
     const templatesDir = path.join(__dirname, 'templates');
@@ -841,5 +992,20 @@ try {
   console.warn('Failed to ensure templates directory:', e.message);
 }
 
+// Serve static frontend build (SPA fallback to index.html)
+const BUILD_DIR = path.join(__dirname, '..', 'web', 'build');
+if (fs.existsSync(BUILD_DIR)) {
+  app.use(express.static(BUILD_DIR));
+  app.get('*', (req, res) => {
+    // API routes should not be intercepted
+    if (req.path.startsWith('/api/') || req.path.startsWith('/files/') || req.path.startsWith('/onlyoffice/') || req.path.startsWith('/editor/')) {
+      return res.status(404).send('Not found');
+    }
+    res.sendFile(path.join(BUILD_DIR, 'index.html'));
+  });
+} else {
+  console.warn('Frontend build directory not found at', BUILD_DIR);
+}
+
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Backend listening on ${PORT}`));
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));

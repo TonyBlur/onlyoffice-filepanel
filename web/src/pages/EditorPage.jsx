@@ -7,7 +7,7 @@ const EditorPage = () => {
   const { name } = useParams();
   const location = useLocation();
   const userMode = new URLSearchParams(location.search).get('user') || 'user';
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [docConfig, setDocConfig] = useState(null);
@@ -45,82 +45,47 @@ const EditorPage = () => {
         if (!backendUrl && window.__BACKEND_URL__) backendUrl = window.__BACKEND_URL__;
         if (!backendUrl) backendUrl = `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
 
-        const response = await fetch(`${backendUrl}/editor/${encodeURIComponent(name)}?user=${encodeURIComponent(userMode)}`);
+        const response = await fetch(`${backendUrl}/api/editor-config/${encodeURIComponent(name)}?user=${encodeURIComponent(userMode)}`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const html = await response.text();
-        
-        // 解析HTML中的docConfig - 更稳健的提取方式
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const scripts = Array.from(doc.querySelectorAll('script'));
-        let found = false;
-        for (let i = 0; i < scripts.length; i++) {
-          const s = scripts[i];
-          const txt = s.textContent || '';
-          if (txt.includes('docConfig')) {
-            // 提取前一个带 src 的 script 作为 Docs API 地址（如果存在）
-            const prevWithSrc = scripts.slice(0, i).reverse().find(x => x.src && x.src.trim());
-            if (prevWithSrc && prevWithSrc.src) {
-              setDocApiUrl(prevWithSrc.src);
-            }
-
-            // 找到 docConfig 的赋值位置并提取 JSON 对象（使用括号匹配以应对嵌套）
-            const assignIndex = txt.indexOf('docConfig');
-            const eqIndex = txt.indexOf('=', assignIndex);
-            const braceStart = txt.indexOf('{', eqIndex);
-            if (braceStart === -1) break;
-            let depth = 0;
-            let endIndex = -1;
-            for (let j = braceStart; j < txt.length; j++) {
-              const ch = txt[j];
-              if (ch === '{') depth++;
-              else if (ch === '}') depth--;
-              if (depth === 0) { endIndex = j; break; }
-            }
-            if (endIndex === -1) break;
-            const jsonStr = txt.substring(braceStart, endIndex + 1);
-            try {
-              const cfg = JSON.parse(jsonStr);
-              // inject language from app settings so OnlyOffice UI follows admin panel lang
-              try {
-                const appLang = normalizeLang(i18n && i18n.language ? i18n.language : 'en');
-                cfg.editorConfig = cfg.editorConfig || {};
-                // set both editorConfig.lang and top-level lang as in the example
-                cfg.editorConfig.lang = appLang;
-                cfg.lang = appLang;
-              } catch (e) {
-                console.warn('Failed to inject language into docConfig', e);
-              }
-              // Try to extract docConfig.token assigned later in the same script
-              const tokenMatch = txt.match(/docConfig\.token\s*=\s*['\"]([^'\"]+)['\"]/);
-              if (tokenMatch && tokenMatch[1]) {
-                cfg.token = tokenMatch[1];
-              }
-              // Also try to extract browserUrl and callbackUrl if assigned later
-              const browserMatch = txt.match(/docConfig\.browserUrl\s*=\s*['\"]([^'\"]+)['\"]/);
-              if (browserMatch && browserMatch[1]) cfg.browserUrl = browserMatch[1];
-              const callbackMatch = txt.match(/docConfig\.callbackUrl\s*=\s*['\"]([^'\"]+)['\"]/);
-              if (callbackMatch && callbackMatch[1]) cfg.callbackUrl = callbackMatch[1];
-              setDocConfig(cfg);
-              found = true;
-              break;
-            } catch (e) {
-              console.warn('Failed to JSON.parse docConfig:', e);
-            }
-          }
+        const data = await response.json();
+        if (!data.docConfig) {
+          throw new Error(t('Failed to parse editor config'));
         }
 
-        if (!found) {
-          throw new Error('无法解析编辑器配置');
+        const cfg = data.docConfig;
+        if (data.docApiUrl) {
+          setDocApiUrl(data.docApiUrl);
         }
+        if (data.token && !cfg.token) {
+          cfg.token = data.token;
+        }
+        if (data.browserUrl && !cfg.browserUrl) {
+          cfg.browserUrl = data.browserUrl;
+        }
+        if (data.callbackUrl && !cfg.callbackUrl) {
+          cfg.callbackUrl = data.callbackUrl;
+        }
+
+        // inject language from app settings so OnlyOffice UI follows admin panel lang
+        try {
+          const appLang = normalizeLang(i18n && i18n.language ? i18n.language : 'en');
+          cfg.editorConfig = cfg.editorConfig || {};
+          // set both editorConfig.lang and top-level lang as in the example
+          cfg.editorConfig.lang = appLang;
+          cfg.lang = appLang;
+        } catch (e) {
+          console.warn('Failed to inject language into docConfig', e);
+        }
+
+        setDocConfig(cfg);
         
       } catch (err) {
         console.error('Failed to load editor:', err);
-        setError(`无法加载编辑器: ${err.message}`);
+        setError(`${t('Failed to load editor')}: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -173,7 +138,7 @@ const EditorPage = () => {
         };
         script.onerror = (e) => {
           console.error('Failed to load DocsAPI script:', script.src, e);
-          setError(`无法加载 OnlyOffice API 脚本: ${script.src}。请确认 OnlyOffice Document Server 在可访问的主机上（例如 http://localhost）。`);
+          setError(`${t('Failed to load OnlyOffice API script')}: ${script.src}. ${t('Please confirm that the Document Server is accessible.')}`);
         };
         document.head.appendChild(script);
       } else {
@@ -226,14 +191,14 @@ const EditorPage = () => {
       docEditorRef.current = new DocsAPI.DocEditor('editor-container', docConfig);
     } catch (err) {
       console.error('Failed to initialize editor:', err);
-      setError(`初始化编辑器失败: ${err.message}`);
+      setError(`${t('Failed to initialize editor')}: ${err.message}`);
     }
   };
 
   if (loading) {
     return (
       <div className="editor-loading">
-        <div className="loading-spinner">正在加载编辑器...</div>
+        <div className="loading-spinner">{t('Loading editor...')}</div>
       </div>
     );
   }
@@ -241,7 +206,7 @@ const EditorPage = () => {
   if (error) {
     return (
       <div className="editor-error">
-        <h2>编辑器错误</h2>
+        <h2>{t('Editor error')}</h2>
         <p>{error}</p>
       </div>
     );

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Button, Table, Modal, Input, Upload, message, Space, Popconfirm, Select, Progress, Card } from 'antd';
-import { UploadOutlined, PlusOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Button, Table, Modal, Input, Upload, message, Space, Popconfirm, Select, Progress, Card, Dropdown } from 'antd';
+import { UploadOutlined, PlusOutlined, FileTextOutlined, FilePdfOutlined, FileExcelOutlined, FilePptOutlined, FileOutlined, SearchOutlined, CloudUploadOutlined, EditOutlined, DeleteOutlined, FormOutlined, MinusCircleOutlined, CopyOutlined, DownloadOutlined, MoreOutlined, SortAscendingOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 
@@ -10,6 +10,14 @@ const HomePage = ({ isAdminLoggedIn }) => {
   const [newFileName, setNewFileName] = useState('');
   const [newFileFormat, setNewFileFormat] = useState('docx');
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [isRenameModalVisible, setIsRenameModalVisible] = useState(false);
+  const [renameTarget, setRenameTarget] = useState('');
+  const [renameNewName, setRenameNewName] = useState('');
+  const [sortBy, setSortBy] = useState('mtime');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [isExtWarningVisible, setIsExtWarningVisible] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const { t } = useTranslation();
 
   // use contextual message API to avoid static message warning
@@ -288,7 +296,14 @@ const HomePage = ({ isAdminLoggedIn }) => {
       window.removeEventListener('dragleave', onDragLeave);
       window.removeEventListener('drop', onDrop);
     };
-  }, [page, perPage, searchQuery]);
+  }, [page, perPage, searchQuery, sortBy, sortOrder]);
+
+  // Track window width for responsive action buttons
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Ensure files are loaded on first mount (after calculatePerPage completes)
   const firstLoadRef = useRef(false);
@@ -305,7 +320,7 @@ const HomePage = ({ isAdminLoggedIn }) => {
       setLoading(true);
       // Use the explicit pp parameter, not the state variable
       const actualPerPage = typeof pp === 'number' ? pp : perPage;
-      const resp = await axios.get(`/api/files?page=${p}&perPage=${actualPerPage}&search=${encodeURIComponent(q)}`);
+      const resp = await axios.get(`/api/files?page=${p}&perPage=${actualPerPage}&search=${encodeURIComponent(q)}&sortBy=${sortBy}&sortOrder=${sortOrder}`);
       // backend may return either array (legacy) or { items, total, page, perPage }
       const data = resp.data;
       if (Array.isArray(data)) {
@@ -513,35 +528,149 @@ const HomePage = ({ isAdminLoggedIn }) => {
     }
   };
 
+  const getFileType = (name = '') => {
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    const docTypes = ['doc', 'docx', 'odt', 'rtf', 'txt'];
+    const sheetTypes = ['xls', 'xlsx', 'ods', 'csv'];
+    const slideTypes = ['ppt', 'pptx', 'odp'];
+    if (ext === 'pdf') return 'pdf';
+    if (sheetTypes.includes(ext)) return 'sheet';
+    if (slideTypes.includes(ext)) return 'slide';
+    if (docTypes.includes(ext)) return 'doc';
+    return 'other';
+  };
+
+  const typeFilterCounts = useMemo(() => {
+    const counts = { all: files.length, doc: 0, sheet: 0, slide: 0, pdf: 0, other: 0 };
+    files.forEach(f => { counts[getFileType(f.name)]++; });
+    return counts;
+  }, [files]);
+
+  const filteredFiles = useMemo(() => {
+    if (typeFilter === 'all') return files;
+    return files.filter(f => getFileType(f.name) === typeFilter);
+  }, [files, typeFilter]);
+
+  const getFileMeta = (name = '') => {
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    const docTypes = ['doc', 'docx', 'odt', 'rtf', 'txt'];
+    const sheetTypes = ['xls', 'xlsx', 'ods', 'csv'];
+    const slideTypes = ['ppt', 'pptx', 'odp'];
+    if (ext === 'pdf') return { ext: 'PDF', type: 'pdf', icon: <FilePdfOutlined /> };
+    if (sheetTypes.includes(ext)) return { ext: ext.toUpperCase(), type: 'sheet', icon: <FileExcelOutlined /> };
+    if (slideTypes.includes(ext)) return { ext: ext.toUpperCase(), type: 'slide', icon: <FilePptOutlined /> };
+    if (docTypes.includes(ext)) return { ext: ext.toUpperCase(), type: 'doc', icon: <FileTextOutlined /> };
+    return { ext: ext ? ext.toUpperCase() : 'FILE', type: 'file', icon: <FileOutlined /> };
+  };
+
+  const formatTimeAgo = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffSec < 60) return t('Just now');
+    if (diffMin < 60) return t('{{min}} minutes ago', { min: diffMin });
+    if (diffHour < 24) return t('{{hour}} hours ago', { hour: diffHour });
+    if (diffDay < 7) return t('{{day}} days ago', { day: diffDay });
+    return date.toLocaleDateString();
+  };
+
   const columns = [
     {
       title: t('File Name'),
       dataIndex: 'name',
       key: 'name',
-      render: (text) => <a href={`/editor/${text}`}>{text}</a>,
+      render: (text, record) => {
+        const meta = getFileMeta(text);
+        return (
+          <a className="file-name-link" href={`/editor/${text}`} title={text}>
+            <span className={`file-type-icon ${meta.type}`}>{meta.icon}</span>
+            <span className="file-title-block">
+              <span className="file-title">{text}</span>
+              <span className="file-subtitle">{meta.ext} · {formatTimeAgo(record.mtime)}</span>
+            </span>
+          </a>
+        );
+      },
     },
     {
       title: t('Actions'),
       key: 'actions',
-      render: (text, record) => (
-        <Space size="middle">
-          <Button type="primary" href={`/editor/${record.name}`}>
-            {t('Edit')}
-          </Button>
-          {isAdminLoggedIn && (
-            <Popconfirm
-              title={t('Are you sure to delete {{name}}?', { name: record.name })}
-              onConfirm={() => handleDelete(record.name)}
-              okText={t('Yes')}
-              cancelText={t('No')}
-            >
-              <Button danger>
-                {t('Delete')}
-              </Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
+      render: (text, record) => {
+        const canShowAll = windowWidth >= 1200;
+        const canShowDelete = windowWidth >= 768;
+        const moreItems = [];
+        if (!canShowAll) {
+          moreItems.push({ key: 'duplicate', label: t('Duplicate'), icon: <CopyOutlined />, onClick: () => handleDuplicate(record.name) });
+          moreItems.push({ key: 'rename', label: t('Rename'), icon: <EditOutlined />, onClick: () => { setRenameTarget(record.name); setRenameNewName(record.name); setIsRenameModalVisible(true); } });
+          moreItems.push({ key: 'download', label: t('Download'), icon: <DownloadOutlined />, onClick: () => handleDownload(record.name) });
+        }
+        if (!canShowDelete && isAdminLoggedIn) {
+          moreItems.push({ key: 'delete', label: t('Delete'), icon: <DeleteOutlined />, danger: true, onClick: () => handleDelete(record.name) });
+        }
+        return (
+          <Space size="small" wrap>
+            <Button className="action-btn action-btn-primary" icon={<FormOutlined />} href={`/editor/${record.name}`}>
+              {t('Edit')}
+            </Button>
+            {canShowAll && (
+              <>
+                <Button className="action-btn action-btn-secondary" icon={<CopyOutlined />} onClick={() => handleDuplicate(record.name)}>
+                  {t('Duplicate')}
+                </Button>
+                <Button className="action-btn action-btn-secondary" icon={<EditOutlined />} onClick={() => {
+                  setRenameTarget(record.name);
+                  setRenameNewName(record.name);
+                  setIsRenameModalVisible(true);
+                }}>
+                  {t('Rename')}
+                </Button>
+                <Button className="action-btn action-btn-secondary" icon={<DownloadOutlined />} onClick={() => handleDownload(record.name)}>
+                  {t('Download')}
+                </Button>
+              </>
+            )}
+            {canShowDelete && isAdminLoggedIn && (
+              <Popconfirm
+                title={t('Are you sure to delete {{name}}?', { name: record.name })}
+                onConfirm={() => handleDelete(record.name)}
+                okText={t('Yes')}
+                cancelText={t('No')}
+              >
+                <Button className="action-btn action-btn-danger" icon={<DeleteOutlined />} danger>
+                  {t('Delete')}
+                </Button>
+              </Popconfirm>
+            )}
+            {moreItems.length > 0 && (
+              <Dropdown
+                menu={{
+                  items: moreItems.map(item => ({
+                    key: item.key,
+                    label: (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: item.danger ? 'var(--danger)' : 'inherit' }}>
+                        {item.icon}
+                        {item.label}
+                      </span>
+                    ),
+                    onClick: item.onClick
+                  }))
+                }}
+                placement="bottomRight"
+              >
+                <Button className="action-btn action-btn-secondary" icon={<MoreOutlined />}>
+                  {t('More')}
+                </Button>
+              </Dropdown>
+            )}
+          </Space>
+        );
+      },
     },
   ];
 
@@ -553,6 +682,75 @@ const HomePage = ({ isAdminLoggedIn }) => {
       messageApi.success(t('File deleted successfully'));
     } catch (error) {
       messageApi.error(t('Failed to delete file'));
+    }
+  };
+
+  const doRename = async () => {
+    try {
+      setIsExtWarningVisible(false);
+      const newName = renameNewName.trim();
+      await axios.put(`/api/files/${encodeURIComponent(renameTarget)}/rename`, { newName });
+      setIsRenameModalVisible(false);
+      setRenameTarget('');
+      setRenameNewName('');
+      fetchFiles(page, perPage, searchQuery);
+      messageApi.success(t('File renamed successfully'));
+    } catch (error) {
+      if (error.response?.status === 409) {
+        messageApi.error(t('A file with that name already exists'));
+      } else {
+        messageApi.error(t('Failed to rename file'));
+      }
+    }
+  };
+
+  const handleRename = () => {
+    const newName = renameNewName.trim();
+    if (!newName) {
+      messageApi.error(t('Please enter a new file name'));
+      return;
+    }
+    if (newName === renameTarget) {
+      setIsRenameModalVisible(false);
+      return;
+    }
+    const getExt = (fn) => {
+      const dot = fn.lastIndexOf('.');
+      return dot > 0 ? fn.slice(dot).toLowerCase() : '';
+    };
+    if (getExt(newName) !== getExt(renameTarget)) {
+      setIsExtWarningVisible(true);
+      return;
+    }
+    doRename();
+  };
+
+  const handleDuplicate = async (fileName) => {
+    try {
+      await axios.post(`/api/files/${encodeURIComponent(fileName)}/duplicate`);
+      fetchFiles(page, perPage, searchQuery);
+      messageApi.success(t('File duplicated successfully'));
+    } catch (error) {
+      messageApi.error(t('Failed to duplicate file'));
+    }
+  };
+
+  const handleDownload = async (fileName) => {
+    try {
+      const resp = await axios.get(`/api/files/${encodeURIComponent(fileName)}/download`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([resp.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      messageApi.error(t('Failed to download file'));
     }
   };
 
@@ -593,79 +791,142 @@ const HomePage = ({ isAdminLoggedIn }) => {
   return (
     <div
       ref={containerRef}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-        padding: '12px',
-        position: 'relative',
-      }}
+      className="home-workspace"
     >
       {isDragging && (
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(24, 144, 255, 0.2)',
-          border: '2px dashed #1890ff',
-          zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', pointerEvents: 'none'
-        }}>
-          <h2 style={{ color: '#1890ff', margin: 0 }}>{t('Drop files here to upload') || 'Drop files here to upload'}</h2>
+        <div className="drag-overlay">
+          <div className="drag-card">
+            <CloudUploadOutlined />
+            <h2>{t('Drop files here to upload')}</h2>
+            <p>{t('Release to add documents to your workspace')}</p>
+          </div>
         </div>
       )}
       {contextHolder}
-      <Space style={{ marginBottom: 16, flexShrink: 0, display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-        <Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={showModal}>
-            {t('New File')}
-          </Button>
-          <Upload customRequest={handleUpload} showUploadList={false}>
-            <Button icon={<UploadOutlined />}>{t('Upload File')}</Button>
-          </Upload>
-          {isAdminLoggedIn && (
-            <Popconfirm
-              title={t('Are you sure to delete selected files?')}
-              onConfirm={handleBulkDelete}
-              okText={t('Yes')}
-              cancelText={t('No')}
-              disabled={!selectedRowKeys || selectedRowKeys.length === 0}
+      <section className="workspace-hero">
+        <div className="hero-filters">
+          {[
+            { key: 'all', label: t('All'), count: typeFilterCounts.all },
+            { key: 'doc', label: t('Docs'), count: typeFilterCounts.doc },
+            { key: 'sheet', label: t('Sheets'), count: typeFilterCounts.sheet },
+            { key: 'slide', label: t('Slides'), count: typeFilterCounts.slide },
+            { key: 'pdf', label: t('PDFs'), count: typeFilterCounts.pdf },
+            { key: 'other', label: t('Other'), count: typeFilterCounts.other },
+          ].map(item => (
+            <button
+              key={item.key}
+              className={`filter-pill ${typeFilter === item.key ? 'active' : ''}`}
+              onClick={() => { setTypeFilter(item.key); setPage(1); }}
             >
-              <Button danger disabled={!selectedRowKeys || selectedRowKeys.length === 0}>
-                {t('Delete Selected')}
-              </Button>
-            </Popconfirm>
-          )}
-        </Space>
-        <Input.Search
-          placeholder={t('Search files')}
-          allowClear
-          onSearch={(val) => {
-            setSearchQuery(val);
-            setPage(1);
-          }}
-          style={{ width: 250 }}
-        />
-      </Space>
-      <div
-        ref={tableWrapperRef}
-        style={{
-          flex: '1 1 auto',
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
+              <span className="filter-label">{item.label}</span>
+              <span className="filter-count">{item.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="hero-stats" aria-label="workspace statistics">
+          <div className="stat-card">
+            <span>{total}</span>
+            <small>{t('Total files')}</small>
+          </div>
+          <div className="stat-card accent">
+            <span>{uploadTasks.filter(t => t.status === 'uploading').length}</span>
+            <small>{t('Uploading')}</small>
+          </div>
+        </div>
+      </section>
+
+      <section className="file-panel-shell">
+        <div className="panel-toolbar">
+          <Space className="toolbar-actions" wrap>
+            <Button className="premium-primary" type="primary" icon={<PlusOutlined />} onClick={showModal}>
+              {t('New File')}
+            </Button>
+            <Upload customRequest={handleUpload} showUploadList={false}>
+              <Button className="soft-button" icon={<UploadOutlined />}>{t('Upload File')}</Button>
+            </Upload>
+            {isAdminLoggedIn && (
+              <Popconfirm
+                title={t('Are you sure to delete selected files?')}
+                onConfirm={handleBulkDelete}
+                okText={t('Yes')}
+                cancelText={t('No')}
+                disabled={!selectedRowKeys || selectedRowKeys.length === 0}
+              >
+                <Button className="soft-button danger-soft" icon={<MinusCircleOutlined />} danger disabled={!selectedRowKeys || selectedRowKeys.length === 0}>
+                  {t('Delete Selected')}
+                </Button>
+              </Popconfirm>
+            )}
+
+          </Space>
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'mtime-desc', label: t('Modified (Newest)'), onClick: () => { setSortBy('mtime'); setSortOrder('desc'); setPage(1); } },
+                { key: 'mtime-asc', label: t('Modified (Oldest)'), onClick: () => { setSortBy('mtime'); setSortOrder('asc'); setPage(1); } },
+                { key: 'name-asc', label: t('Name (A-Z)'), onClick: () => { setSortBy('name'); setSortOrder('asc'); setPage(1); } },
+                { key: 'name-desc', label: t('Name (Z-A)'), onClick: () => { setSortBy('name'); setSortOrder('desc'); setPage(1); } },
+                { key: 'size-desc', label: t('Size (Largest)'), onClick: () => { setSortBy('size'); setSortOrder('desc'); setPage(1); } },
+                { key: 'size-asc', label: t('Size (Smallest)'), onClick: () => { setSortBy('size'); setSortOrder('asc'); setPage(1); } },
+              ].map(item => ({ key: item.key, label: item.label, onClick: item.onClick })),
+            }}
+            placement="bottomRight"
+          >
+            <Button className="soft-button" icon={<SortAscendingOutlined />}>
+              {t('Sort')}
+            </Button>
+          </Dropdown>
+          <Input.Search
+            className="file-search"
+            placeholder={t('Search files')}
+            allowClear
+            onSearch={(val) => {
+              setSearchQuery(val);
+              setPage(1);
+            }}
+          />
+        </div>
+        <div
+          ref={tableWrapperRef}
+          className="table-shell"
+        >
+          <Table
+            className="premium-table"
+            columns={columns}
+            dataSource={filteredFiles}
+            rowKey="name"
+            loading={loading}
+            pagination={{ current: page, pageSize: perPage, total: filteredFiles.length }}
+            rowSelection={rowSelection}
+            onChange={onTableChange}
+            style={{ flex: '1 1 auto' }}
+          />
+        </div>
+      </section>
+      <Modal
+        title={t('Rename File')}
+        open={isRenameModalVisible}
+        onOk={handleRename}
+        onCancel={() => { setIsRenameModalVisible(false); setRenameTarget(''); setRenameNewName(''); }}
+        destroyOnClose
       >
-        <Table
-          columns={columns}
-          dataSource={files}
-          rowKey="name"
-          loading={loading}
-          pagination={{ current: page, pageSize: perPage, total }}
-          rowSelection={rowSelection}
-          onChange={onTableChange}
-          style={{ flex: '1 1 auto' }}
+        <Input
+          placeholder={t('Enter new file name')}
+          value={renameNewName}
+          onChange={(e) => setRenameNewName(e.target.value)}
+          onPressEnter={handleRename}
         />
-      </div>
+      </Modal>
+      <Modal
+        title={t('Warning')}
+        open={isExtWarningVisible}
+        onOk={() => { setIsExtWarningVisible(false); doRename(); }}
+        onCancel={() => setIsExtWarningVisible(false)}
+        okText={t('Continue')}
+        cancelText={t('Cancel')}
+      >
+        <p>{t('Changing the file extension may make the file unusable. Are you sure you want to continue?')}</p>
+      </Modal>
       <Modal
         title={t('Create New File')}
         open={isModalVisible}
@@ -689,17 +950,10 @@ const HomePage = ({ isAdminLoggedIn }) => {
       </Modal>
       {isUploadListVisible && uploadTasks.length > 0 && (
         <Card 
+          className="upload-dock"
           title={`${t('Uploading Files')} (${uploadTasks.filter(t => t.status === 'uploading').length})`}
-          extra={<Button type="link" size="small" onClick={clearFinishedUploads}>{t('Clear Finished') || 'Clear Finished'}</Button>}
-          style={{
-            position: 'fixed',
-            bottom: 24,
-            right: 24,
-            width: 320,
-            zIndex: 1000,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }}
-          bodyStyle={{ padding: '0 12px', maxHeight: 300, overflowY: 'auto' }}
+          extra={<Button type="link" size="small" onClick={clearFinishedUploads}>{t('Clear Finished')}</Button>}
+          bodyStyle={{ padding: '0 14px', maxHeight: 300, overflowY: 'auto' }}
         >
           {uploadTasks.map(task => (
             <div key={task.uid} style={{ padding: '12px 0', borderBottom: '1px solid var(--ant-color-split, #f0f0f0)' }}>
@@ -708,7 +962,7 @@ const HomePage = ({ isAdminLoggedIn }) => {
                   {task.name}
                 </span>
                 <span style={{ fontSize: 12, color: task.status === 'error' ? 'red' : 'inherit' }}>
-                  {task.status === 'success' ? t('Finished') || 'Finished' : task.status === 'error' ? t('Error') || 'Error' : `${task.progress}%`}
+                  {task.status === 'success' ? t('Finished') : task.status === 'error' ? t('Error') : `${task.progress}%`}
                 </span>
               </div>
               <Progress percent={task.progress} showInfo={false} status={task.status === 'success' ? 'success' : task.status === 'error' ? 'exception' : 'active'} size="small" />

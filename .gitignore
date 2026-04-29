@@ -3,7 +3,10 @@ dist
 *.log
 
 # Ignore runtime uploaded files
-/backend/data/
+/server/data/
+
+# Frontend build output
+/web/build/
 
 # Docker
 docker-compose.override.yml

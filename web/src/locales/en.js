@@ -1,0 +1,125 @@
+export default {
+  // App
+  'OnlyOffice': 'OnlyOffice',
+  'File Panel': 'File Panel',
+  'OnlyOffice File Panel': 'OnlyOffice File Panel',
+  'Language': 'Language',
+  'Theme': 'Theme',
+  'Account': 'Account',
+  'Back': 'Back',
+
+  // Theme
+  'Light Mode': 'Light Mode',
+  'Dark Mode': 'Dark Mode',
+  'System': 'System',
+
+  // Auth
+  'Admin Login': 'Admin Login',
+  'Login': 'Login',
+  'Password': 'Password',
+  'Login successful': 'Login successful',
+  'Login failed': 'Login failed',
+  'Logout': 'Logout',
+  'Please input your password!': 'Please input your password!',
+
+  // Language
+  '简体中文': '简体中文',
+  'English': 'English',
+
+  // Home page
+  'New File': 'New File',
+  'Upload File': 'Upload File',
+  'Search files': 'Search files',
+  'File Name': 'File Name',
+  'Actions': 'Actions',
+  'Edit': 'Edit',
+  'Delete': 'Delete',
+  'Delete Selected': 'Delete Selected',
+  'Are you sure to delete selected files?': 'Are you sure to delete selected files?',
+  'Are you sure to delete {{name}}?': 'Are you sure to delete {{name}}?',
+  'Yes': 'Yes',
+  'No': 'No',
+  'Cancel': 'Cancel',
+
+  // Create file modal
+  'Create New File': 'Create New File',
+  'Enter file name (without extension)': 'Enter file name (without extension)',
+  'Please enter a file name': 'Please enter a file name',
+  'Format': 'Format',
+  'File created successfully': 'File created successfully',
+  'Failed to create file': 'Failed to create file',
+
+  // Upload
+  'Upload Files': 'Upload Files',
+  'Uploading Files': 'Uploading Files',
+  'Drop files here to upload': 'Drop files here to upload',
+  'File uploaded successfully': 'File uploaded successfully',
+  'File upload failed': 'File upload failed',
+  'files.uploadSuccess': 'uploaded successfully',
+  'files.uploadFailed': 'upload failed',
+  'files.pause': 'Pause',
+  'files.resume': 'Resume',
+  'File format not supported. Supported formats: ': 'File format not supported. Supported formats: ',
+  'File size exceeds 2GB limit': 'File size exceeds 2GB limit',
+  'Clear Finished': 'Clear Finished',
+  'Finished': 'Finished',
+  'Error': 'Error',
+
+  // File operations
+  'File deleted successfully': 'File deleted successfully',
+  'Failed to delete file': 'Failed to delete file',
+  'Selected files deleted': 'Selected files deleted',
+  'Failed to delete selected files': 'Failed to delete selected files',
+  'Failed to fetch files': 'Failed to fetch files',
+  'Rename': 'Rename',
+  'Rename File': 'Rename File',
+  'Enter new file name': 'Enter new file name',
+  'Please enter a new file name': 'Please enter a new file name',
+  'File renamed successfully': 'File renamed successfully',
+  'Failed to rename file': 'Failed to rename file',
+  'A file with that name already exists': 'A file with that name already exists',
+  'Duplicate': 'Duplicate',
+  'File duplicated successfully': 'File duplicated successfully',
+  'Failed to duplicate file': 'Failed to duplicate file',
+  'Download': 'Download',
+  'Failed to download file': 'Failed to download file',
+  'Warning': 'Warning',
+  'Changing the file extension may make the file unusable. Are you sure you want to continue?': 'Changing the file extension may make the file unusable. Are you sure you want to continue?',
+  'Continue': 'Continue',
+  'More': 'More',
+  'Modified (Newest)': 'Modified (Newest)',
+  'Modified (Oldest)': 'Modified (Oldest)',
+  'Name (A-Z)': 'Name (A-Z)',
+  'Name (Z-A)': 'Name (Z-A)',
+  'Size (Largest)': 'Size (Largest)',
+  'Size (Smallest)': 'Size (Smallest)',
+  'Sort': 'Sort',
+
+  'Just now': 'Just now',
+  '{{min}} minutes ago': '{{min}} minutes ago',
+  '{{hour}} hours ago': '{{hour}} hours ago',
+  '{{day}} days ago': '{{day}} days ago',
+
+  // Hero section
+  'Total files': 'Total files',
+  'Uploading': 'Uploading',
+  'All': 'All',
+  'Docs': 'Docs',
+  'Sheets': 'Sheets',
+  'Slides': 'Slides',
+  'PDFs': 'PDFs',
+  'Other': 'Other',
+
+  // Editor page
+  'Loading editor...': 'Loading editor...',
+  'Editor error': 'Editor error',
+  'Failed to parse editor config': 'Failed to parse editor config',
+  'Failed to load editor': 'Failed to load editor',
+  'Failed to load OnlyOffice API script': 'Failed to load OnlyOffice API script',
+  'Please confirm that the Document Server is accessible.': 'Please confirm that the Document Server is accessible (e.g. http://localhost).',
+  'Failed to initialize editor': 'Failed to initialize editor',
+
+  // Hero section extended
+  'Release to add documents to your workspace': 'Release to add documents to your workspace',
+  'Create, upload and edit office documents in a calmer, polished workspace.': 'Create, upload and edit office documents in a calmer, polished workspace.',
+}

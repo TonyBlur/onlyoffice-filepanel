@@ -16,7 +16,8 @@ export default defineConfig({
     open: false,
     proxy: {
       // proxy to backend when developing locally
-      '/api': process.env.VITE_PROXY_TARGET || 'http://localhost:4000'
+      '/api': process.env.VITE_PROXY_TARGET || 'http://localhost:4000',
+      '/print': process.env.VITE_PROXY_TARGET || 'http://localhost:4000'
     }
   }
 })
