@@ -8,7 +8,7 @@
         "private_port": 80
       },
       "storage": {
-        "url": "http://host.docker.internal:4000",
+        "url": "http://host.docker.internal:3000",
         "path": "/files/",
         "command": {
           "download": {

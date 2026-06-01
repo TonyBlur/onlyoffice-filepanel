@@ -19,33 +19,24 @@ interface EditorConfig {
     events?: {
       onRequestRefreshFile?: () => void;
       onOutdatedVersion?: () => void;
-      onDocumentReady?: () => void;
-      onDocumentStateChange?: (event: { data: boolean }) => void;
     };
   };
   token?: string;
   lang?: string;
-  browserUrl?: string;
-  callbackUrl?: string;
 }
 
 interface EditorResponse {
   docConfig: EditorConfig;
   docApiUrl: string;
   token: string;
-  browserUrl: string;
-  callbackUrl: string;
 }
 
 declare global {
   interface Window {
     __BACKEND_URL__?: string;
-    __DOC_CONFIG__?: EditorConfig;
-    __DOC_TOKEN__?: string;
     DocsAPI?: {
       DocEditor: new (containerId: string, config: EditorConfig) => {
         destroyEditor: () => void;
-        refreshFile: () => void;
       };
     };
   }
@@ -71,11 +62,10 @@ const EditorPage = (): React.ReactElement => {
   const [docConfig, setDocConfig] = useState<EditorConfig | null>(null);
   const [docApiUrl, setDocApiUrl] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
-  const docEditorRef = useRef<{ destroyEditor: () => void; refreshFile: () => void } | null>(null);
-  /** Tracks whether the document has unsaved changes (reported by OnlyOffice events). */
-  const hasUnsavedChangesRef = useRef(false);
-  /** Tracks whether the editor has fully loaded and the user is editing. */
-  const isEditingRef = useRef(false);
+  const docEditorRef = useRef<{ destroyEditor: () => void } | null>(null);
+
+  // No forced-save on navigation.  OnlyOffice auto-saves when destroyEditor()
+  // is called on component unmount, but ONLY if the document was actually edited.
 
   const normalizeLang = (lang: string): string => {
     if (!lang) return 'en';
@@ -105,8 +95,6 @@ const EditorPage = (): React.ReactElement => {
         const cfg: EditorConfig = { ...data.docConfig };
         if (data.docApiUrl) setDocApiUrl(data.docApiUrl);
         if (data.token && !cfg.token) cfg.token = data.token;
-        if (data.browserUrl && !cfg.browserUrl) cfg.browserUrl = data.browserUrl;
-        if (data.callbackUrl && !cfg.callbackUrl) cfg.callbackUrl = data.callbackUrl;
 
         try {
           const appLang = normalizeLang(i18n?.language || 'en');
@@ -137,26 +125,8 @@ const EditorPage = (): React.ReactElement => {
     }
   }, [name, userMode, i18n, t]);
 
-  // Save on unmount / page close / refresh: trigger OnlyOffice forcesave
-  useEffect(() => {
-    const forcesaveUrl = resolveBackendUrl();
-    const url = `${forcesaveUrl}/api/forcesave-doc/${encodeURIComponent(name || '')}`;
-
-    return () => {
-      try { navigator.sendBeacon(url, '{}'); } catch { /* ignore */ }
-    };
-  }, [name]);
-
-  // Warn user when closing tab/window with unsaved changes
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChangesRef.current || isEditingRef.current) {
-        e.preventDefault();
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+  // No sendBeacon safety-net needed.  OnlyOffice's destroyEditor() (called on
+  // component unmount) triggers auto-save which fires the webhook callback.
 
   useEffect(() => {
     if (docConfig && editorRef.current && !docEditorRef.current) {
@@ -215,28 +185,15 @@ const EditorPage = (): React.ReactElement => {
       cfg.editorConfig = cfg.editorConfig || { callbackUrl: '', mode: 'edit' };
       cfg.editorConfig.events = cfg.editorConfig.events || {};
 
-      const refreshHandler = () => {
-        try {
-          if (docEditorRef.current && typeof docEditorRef.current.refreshFile === 'function') {
-            try { docEditorRef.current.refreshFile(); return; } catch { /* ignore */ }
-          }
-          window.location.reload();
-        } catch {
-          window.location.reload();
-        }
-      };
-
-      cfg.editorConfig.events.onRequestRefreshFile = refreshHandler;
-      cfg.editorConfig.events.onOutdatedVersion = refreshHandler;
-
-      // Track document ready and unsaved state for beforeunload
-      cfg.editorConfig.events.onDocumentReady = () => {
-        isEditingRef.current = true;
-      };
-      cfg.editorConfig.events.onDocumentStateChange = (event: { data: boolean }) => {
-        // OnlyOffice reports true when there are unsaved changes
-        hasUnsavedChangesRef.current = !!event.data;
-      };
+      // OnlyOffice may fire onOutdatedVersion when it detects the file on disk
+      // has changed after a webhook save.  In our setup the only "external"
+      // change comes from our own webhook writing back the same content that
+      // OnlyOffice just saved — so the editor already has the latest version.
+      // We intentionally do NOTHING here: calling refreshFile() (non-standard
+      // API) or window.location.reload() puts the editor into a broken state.
+      // A no-op handler causes OnlyOffice to silently dismiss the event.
+      cfg.editorConfig.events.onOutdatedVersion = () => {};
+      cfg.editorConfig.events.onRequestRefreshFile = () => {};
 
       docEditorRef.current = new window.DocsAPI!.DocEditor('editor-container', cfg);
     } catch (err) {

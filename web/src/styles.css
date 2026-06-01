@@ -101,6 +101,9 @@ body{
 .app-main{
   flex:1;
   overflow:auto;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
 }
 
 /* ===== App Footer ===== */
@@ -170,22 +173,23 @@ body{
   font-size:13px;
 }
 
-/* ===== Dropdown menu override (glass style) ===== */
-.ant-dropdown .ant-dropdown-menu{
+/* ===== Dropdown menu override (glass style — applies globally including pagination) ===== */
+.ant-dropdown .ant-dropdown-menu,
+.ant-dropdown-menu-submenu .ant-dropdown-menu{
   border-radius:14px !important;
   border:1px solid var(--border) !important;
   box-shadow:0 8px 32px var(--shadow-md) !important;
   background:var(--card-glass) !important;
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
+  backdrop-filter:blur(18px) saturate(1.6) !important;
+  -webkit-backdrop-filter:blur(18px) saturate(1.6) !important;
   padding:6px !important;
-  min-width:140px;
+  min-width:120px;
 }
 .ant-dropdown .ant-dropdown-menu-item{
   border-radius:10px !important;
   font-size:13px !important;
   font-weight:500;
-  padding:8px 12px !important;
+  padding:8px 14px !important;
   color:var(--text) !important;
   transition:background .12s;
 }
@@ -201,8 +205,7 @@ body{
 .home-workspace{
   display:flex;
   flex-direction:column;
-  height:100%;
-  overflow:hidden;
+  min-height:100%;
   padding:0 24px 24px;
   position:relative;
   max-width:1200px;
@@ -214,9 +217,9 @@ body{
 .drag-overlay{
   position:absolute;
   top:0;left:0;right:0;bottom:0;
-  background:rgba(54,91,255,0.08);
-  backdrop-filter:blur(6px);
-  -webkit-backdrop-filter:blur(6px);
+  background:rgba(54,91,255,0.06);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
   border:2px dashed var(--primary);
   border-radius:20px;
   z-index:9999;
@@ -224,28 +227,63 @@ body{
   justify-content:center;
   align-items:center;
   pointer-events:none;
-  animation:fadeIn .15s ease;
+  animation:dragFadeIn .2s ease;
 }
 .drag-card{
   text-align:center;
+  background:var(--card-glass);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--border);
+  border-radius:24px;
+  padding:40px 48px 32px;
+  box-shadow:0 16px 48px var(--shadow-md), 0 0 0 1px var(--primary-soft);
+  max-width:380px;
+  animation:dragCardIn .25s cubic-bezier(.34,1.56,.64,1);
+}
+.drag-card-icon{
+  width:72px;
+  height:72px;
+  border-radius:20px;
+  background:var(--primary-soft);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:0 auto 20px;
+  animation:dragBounce 1.2s ease-in-out infinite;
+}
+.drag-card-icon .anticon{
+  font-size:32px;
   color:var(--primary);
 }
-.drag-card .anticon{
-  font-size:48px;
-  margin-bottom:12px;
-  display:block;
-}
-.drag-card h2{
-  font-size:22px;
+.drag-card-title{
+  font-size:18px;
   font-weight:700;
-  margin:0 0 6px;
-  letter-spacing:-0.03em;
+  margin:0 0 8px;
+  letter-spacing:-0.02em;
+  color:var(--text);
+  line-height:1.3;
 }
-.drag-card p{
+.drag-card-hint{
   font-size:14px;
   color:var(--text-secondary);
-  margin:0;
+  margin:0 0 16px;
+  line-height:1.4;
 }
+.drag-card-formats{
+  font-size:11px;
+  font-weight:500;
+  color:var(--text-soft);
+  margin:0;
+  letter-spacing:0.02em;
+  padding:8px 14px;
+  background:var(--hover);
+  border-radius:8px;
+  display:inline-block;
+}
+@keyframes dragFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes dragCardIn{from{opacity:0;transform:scale(.92) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes dragBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
 /* ===== Hero section ===== */
 .workspace-hero{
@@ -255,29 +293,6 @@ body{
   padding:10px 0;
   flex-shrink:0;
   gap:12px;
-}
-.eyebrow{
-  font-size:11px;
-  font-weight:650;
-  letter-spacing:0.10em;
-  text-transform:uppercase;
-  color:var(--text-soft);
-  margin-bottom:6px;
-}
-.workspace-hero h1{
-  font-size:30px;
-  font-weight:750;
-  letter-spacing:-0.04em;
-  margin:0 0 6px;
-  color:var(--text);
-  line-height:1.12;
-}
-.hero-copy{
-  font-size:14px;
-  color:var(--text-secondary);
-  margin:0;
-  max-width:420px;
-  line-height:1.55;
 }
 .hero-stats{
   display:flex;
@@ -407,7 +422,7 @@ body{
   border-radius:20px;
   display:flex;
   flex-direction:column;
-  overflow:hidden;
+  overflow:visible;
   box-shadow:0 1px 3px var(--shadow);
 }
 
@@ -469,13 +484,16 @@ body{
   border:1px solid var(--border) !important;
   background:var(--card) !important;
   color:var(--text) !important;
-  box-shadow:none !important;
-  transition:all .2s;
+  box-shadow:0 1px 3px rgba(0,0,0,.04) !important;
+  transition:transform .2s cubic-bezier(.25,.46,.45,.94),
+             box-shadow .2s cubic-bezier(.25,.46,.45,.94),
+             background .15s ease,
+             border-color .15s ease;
 }
 .soft-button:hover{
   background:var(--hover) !important;
   border-color:var(--border-strong) !important;
-  box-shadow:0 4px 12px var(--shadow) !important;
+  box-shadow:0 3px 10px rgba(0,0,0,.06) !important;
   transform:translateY(-1px);
 }
 .soft-button.danger-soft{
@@ -485,25 +503,8 @@ body{
 .soft-button.danger-soft:hover{
   background:rgba(229,72,77,0.08) !important;
   border-color:var(--danger) !important;
-  box-shadow:0 4px 12px var(--shadow) !important;
+  box-shadow:0 3px 10px rgba(229,72,77,.1) !important;
   transform:translateY(-1px);
-}
-
-/* Sort select */
-.sort-select .ant-select-selector{
-  border-radius:14px !important;
-  border:1px solid var(--border) !important;
-  background:var(--card) !important;
-  height:38px !important;
-  display:flex;
-  align-items:center;
-}
-.sort-select .ant-select-selection-item{
-  font-size:13px;
-  font-weight:500;
-}
-.sort-select .ant-select-arrow{
-  color:var(--text-secondary) !important;
 }
 
 /* File search — seamless search bar */
@@ -592,46 +593,10 @@ body{
   flex-direction:column;
   overflow:hidden;
   padding:0;
-  min-height:0;
 }
-/* Table takes natural content height — perPage limits rows to fit viewport */
 .table-shell .ant-table-wrapper{
   display:flex;
   flex-direction:column;
-  overflow:hidden;
-}
-.table-shell .ant-table-wrapper .ant-spin-nested-loading{
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-.table-shell .ant-table-wrapper .ant-spin-container{
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-.table-shell .ant-table-wrapper .ant-table{
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-.table-shell .ant-table-wrapper .ant-table-container{
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-.table-shell .ant-table-wrapper .ant-table-body{
-  overflow-y:auto !important;
-  overflow-x:hidden !important;
-}
-
-/* Table body — JS sets height directly; CSS only hides scrollbar & measure-row */
-.premium-table .ant-table-body{
-  scrollbar-width:none;
-  -ms-overflow-style:none;
-}
-.premium-table .ant-table-body::-webkit-scrollbar{
-  display:none;
 }
 .premium-table .ant-table-measure-row{
   display:none !important;
@@ -656,10 +621,8 @@ body{
   padding:8px !important;
   text-align:center !important;
 }
-/* Prevent horizontal scroll in table content area, but allow action buttons to overflow */
 .premium-table .ant-table-content{
   overflow-x:visible !important;
-  overflow-y:hidden !important;
 }
 .premium-table .ant-table-thead > tr > th{
   background:transparent !important;
@@ -673,9 +636,10 @@ body{
 }
 .premium-table .ant-table-tbody > tr > td{
   border-bottom:1px solid var(--border) !important;
-  padding:14px 20px !important;
+  padding:10px 20px !important;
   transition:background .15s;
   overflow:hidden;
+  height:68px !important;
 }
 /* Name column: allow text truncation via flex + overflow */
 .premium-table .ant-table-tbody > tr > td:first-child{
@@ -688,15 +652,63 @@ body{
 .premium-table .ant-table-tbody > tr:hover > td{
   background:var(--hover);
 }
-/* Pagination — extra top spacing so it doesn't hug last row */
-.premium-table .ant-pagination{
-  padding:16px 20px 14px !important;
-  margin:0 !important;
+/* ===== Pagination Bar (integrated page nav + size changer) ===== */
+.pagination-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 20px 14px;
   border-top:1px solid var(--border);
   flex-shrink:0;
 }
+.pagination-bar .ant-pagination{
+  margin:0 !important;
+  padding:0 !important;
+  border-top:none !important;
+}
+.size-changer-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 14px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:var(--card);
+  color:var(--text);
+  cursor:pointer;
+  font-size:13px;
+  font-weight:550;
+  font-family:inherit;
+  height:34px;
+  outline:none;
+  flex-shrink:0;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);
+  transition:transform .2s cubic-bezier(.25,.46,.45,.94),
+             box-shadow .2s cubic-bezier(.25,.46,.45,.94),
+             background .15s ease,
+             border-color .15s ease;
+}
+.size-changer-btn:hover{
+  border-color:var(--border-strong);
+  background:var(--hover);
+  box-shadow:0 3px 10px rgba(0,0,0,.06);
+  transform:translateY(-1px);
+}
+.size-changer-btn.open{
+  border-color:var(--border-strong);
+  background:var(--hover);
+  box-shadow:0 3px 10px rgba(0,0,0,.06);
+}
+.size-changer-arrow{
+  font-size:10px;
+  color:var(--text-secondary);
+  transition:transform .25s ease;
+}
+.size-changer-btn.open .size-changer-arrow{
+  transform:rotate(180deg);
+}
 /* Pagination items - unified rounded style */
-.premium-table .ant-pagination .ant-pagination-item{
+.pagination-bar .ant-pagination-item{
   border-radius:10px !important;
   border:1px solid var(--border) !important;
   background:var(--card) !important;
@@ -707,37 +719,37 @@ body{
   font-size:13px;
   transition:all .18s;
 }
-.premium-table .ant-pagination .ant-pagination-item:hover{
+.pagination-bar .ant-pagination-item:hover{
   border-color:var(--border-strong) !important;
   background:var(--hover) !important;
 }
-.premium-table .ant-pagination .ant-pagination-item-active{
+.pagination-bar .ant-pagination-item-active{
   background:var(--primary) !important;
   border-color:var(--primary) !important;
 }
-.premium-table .ant-pagination .ant-pagination-item-active a{
+.pagination-bar .ant-pagination-item-active a{
   color:#fff !important;
 }
 /* Pagination prev/next buttons */
-.premium-table .ant-pagination .ant-pagination-prev,
-.premium-table .ant-pagination .ant-pagination-next{
+.pagination-bar .ant-pagination-prev,
+.pagination-bar .ant-pagination-next{
   border-radius:10px !important;
 }
-.premium-table .ant-pagination .ant-pagination-prev .ant-pagination-item-link,
-.premium-table .ant-pagination .ant-pagination-next .ant-pagination-item-link{
+.pagination-bar .ant-pagination-prev .ant-pagination-item-link,
+.pagination-bar .ant-pagination-next .ant-pagination-item-link{
   border-radius:10px !important;
   border:1px solid var(--border) !important;
   background:var(--card) !important;
   color:var(--text-secondary) !important;
 }
-.premium-table .ant-pagination .ant-pagination-prev:hover .ant-pagination-item-link,
-.premium-table .ant-pagination .ant-pagination-next:hover .ant-pagination-item-link{
+.pagination-bar .ant-pagination-prev:hover .ant-pagination-item-link,
+.pagination-bar .ant-pagination-next:hover .ant-pagination-item-link{
   border-color:var(--border-strong) !important;
   background:var(--hover) !important;
   color:var(--text) !important;
 }
 /* Pagination disabled state */
-.premium-table .ant-pagination .ant-pagination-disabled .ant-pagination-item-link{
+.pagination-bar .ant-pagination-disabled .ant-pagination-item-link{
   opacity:0.5;
 }
 
@@ -836,24 +848,29 @@ body{
   border:1px solid var(--border) !important;
   background:var(--card) !important;
   color:var(--text) !important;
-  transition:all .18s;
+  box-shadow:0 1px 3px rgba(0,0,0,.04) !important;
+  transition:transform .2s cubic-bezier(.25,.46,.45,.94),
+             box-shadow .2s cubic-bezier(.25,.46,.45,.94),
+             background .15s ease,
+             border-color .15s ease,
+             color .15s ease !important;
 }
 .action-btn:hover{
   background:var(--hover) !important;
   border-color:var(--border-strong) !important;
-  box-shadow:0 4px 12px var(--shadow) !important;
+  box-shadow:0 3px 10px rgba(0,0,0,.06) !important;
   transform:translateY(-1px);
 }
 .action-btn-primary{
   background:var(--primary) !important;
   border-color:var(--primary) !important;
   color:#fff !important;
-  box-shadow:0 2px 6px rgba(54,91,255,0.18);
+  box-shadow:0 2px 8px rgba(54,91,255,.15) !important;
 }
 .action-btn-primary:hover{
   background:var(--primary-deep) !important;
   border-color:var(--primary-deep) !important;
-  box-shadow:0 6px 16px rgba(54,91,255,0.28) !important;
+  box-shadow:0 4px 14px rgba(54,91,255,.22) !important;
   transform:translateY(-1px);
 }
 .action-btn-secondary{
@@ -863,7 +880,7 @@ body{
 .action-btn-secondary:hover{
   background:var(--hover) !important;
   border-color:var(--border-strong) !important;
-  box-shadow:0 4px 12px var(--shadow) !important;
+  box-shadow:0 3px 10px rgba(0,0,0,.06) !important;
   transform:translateY(-1px);
 }
 .action-btn-danger{
@@ -873,7 +890,7 @@ body{
 .action-btn-danger:hover{
   background:rgba(229,72,77,0.08) !important;
   border-color:var(--danger) !important;
-  box-shadow:0 4px 12px var(--shadow) !important;
+  box-shadow:0 3px 10px rgba(229,72,77,.1) !important;
   transform:translateY(-1px);
 }
 
@@ -979,65 +996,6 @@ body{
   background:var(--primary-deep) !important;
   border-color:var(--primary-deep) !important;
   box-shadow:0 4px 16px rgba(54,91,255,0.35) !important;
-}
-/* Simplified login form - flat structure, no nesting */
-.login-form{
-  display:flex;
-  flex-direction:column;
-  gap:20px;
-}
-.login-input-wrap{
-  position:relative;
-  display:flex;
-  align-items:center;
-  width:100%;
-}
-.login-input{
-  width:100%;
-  height:42px;
-  border-radius:12px;
-  border:1px solid var(--border);
-  background:var(--card);
-  padding:0 42px 0 14px;
-  font-size:14px;
-  color:var(--text);
-  outline:none;
-  transition:all .18s;
-  font-family:inherit;
-}
-.login-input:hover{
-  border-color:var(--border-strong);
-}
-.login-input:focus{
-  border-color:var(--primary);
-  box-shadow:0 0 0 3px var(--primary-soft);
-}
-.login-eye-btn{
-  position:absolute;
-  right:4px;
-  top:50%;
-  transform:translateY(-50%);
-  width:32px;
-  height:32px;
-  border-radius:8px;
-  border:none;
-  background:transparent;
-  color:var(--text-secondary);
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  font-size:14px;
-  transition:all .15s;
-}
-.login-eye-btn:hover{
-  background:var(--hover);
-  color:var(--text);
-}
-.login-actions{
-  display:flex;
-  justify-content:flex-end;
-  gap:8px;
 }
 /* Popconfirm / Popover — unified glass-card style matching LoginModal */
 .ant-popover{
@@ -1272,19 +1230,6 @@ body{
   box-shadow:0 6px 20px rgba(54,91,255,0.35);
 }
 
-/* ===== Table too small warning ===== */
-.table-too-small{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  height:100%;
-  padding:24px;
-  color:var(--text-secondary);
-  font-size:14px;
-  font-weight:500;
-  text-align:center;
-}
-
 /* ===== Dark mode overrides ===== */
 /* Search placeholder */
 :root[data-theme="dark"] .file-search .ant-input::placeholder{
@@ -1312,9 +1257,7 @@ body{
 }
 /* Modal text (create file, rename, etc.) */
 :root[data-theme="dark"] .ant-modal .ant-modal-title,
-:root[data-theme="dark"] .ant-modal .ant-modal-body,
-:root[data-theme="dark"] .ant-modal .ant-modal-confirm-title,
-:root[data-theme="dark"] .ant-modal .ant-modal-confirm-body{
+:root[data-theme="dark"] .ant-modal .ant-modal-body{
   color:var(--text) !important;
 }
 :root[data-theme="dark"] .ant-modal .ant-modal-body p{
@@ -1348,22 +1291,6 @@ body{
 :root[data-theme="dark"] .ant-modal .ant-select-arrow{
   color:var(--text-secondary) !important;
 }
-:root[data-theme="dark"] .ant-select-dropdown{
-  background:var(--card-glass) !important;
-  border:1px solid var(--border) !important;
-  box-shadow:0 8px 32px var(--shadow-md) !important;
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
-}
-:root[data-theme="dark"] .ant-select-dropdown .ant-select-item{
-  color:var(--text) !important;
-}
-:root[data-theme="dark"] .ant-select-dropdown .ant-select-item-option-selected{
-  background:var(--primary-soft) !important;
-}
-:root[data-theme="dark"] .ant-select-dropdown .ant-select-item:hover{
-  background:var(--hover) !important;
-}
 /* Popconfirm title text */
 :root[data-theme="dark"] .ant-popconfirm-title{
   color:var(--text) !important;
@@ -1377,6 +1304,9 @@ body{
 }
 :root[data-theme="dark"] .ant-pagination-item-ellipsis{
   color:var(--text-soft) !important;
+}
+:root[data-theme="dark"] .pagination-bar .ant-pagination-total-text{
+  color:var(--text-secondary) !important;
 }
 /* Modal buttons dark mode */
 :root[data-theme="dark"] .ant-modal .ant-btn-default{
@@ -1395,17 +1325,17 @@ body{
 /* Ant renders the placeholder as a tbody row, so the row and cell both need to fill
    the scroll body before the custom empty component can truly center itself. */
 .premium-table .ant-table-body > table{
-  min-height:var(--table-body-h, 220px);
+  min-height:220px;
 }
 .premium-table .ant-table-tbody > tr.ant-table-placeholder{
-  height:var(--table-body-h, 220px) !important;
+  height:220px !important;
 }
 .premium-table .ant-table-placeholder:hover > td,
 .premium-table .ant-table-placeholder > td{
   background:transparent !important;
 }
 .premium-table .ant-table-placeholder .ant-table-cell{
-  height:var(--table-body-h, 220px) !important;
+  height:220px !important;
   border-bottom:none !important;
   background:transparent !important;
   padding:0 !important;
@@ -1414,7 +1344,7 @@ body{
 }
 .premium-table .ant-table-placeholder .ant-table-cell > div{
   width:100%;
-  min-height:var(--table-body-h, 220px);
+  min-height:220px;
   display:flex;
 }
 /* Dark mode — override default bg */
@@ -1431,7 +1361,7 @@ body{
   justify-content:center;
   gap:0;
   width:100%;
-  min-height:var(--table-body-h, 220px);
+  min-height:220px;
   padding:32px 24px;
   user-select:none;
 }
@@ -1454,9 +1384,6 @@ body{
   font-weight:450;
   color:var(--text-soft);
   letter-spacing:0.01em;
-}
-:root[data-theme="dark"] .ant-table-placeholder:hover .ant-table-cell{
-  background:var(--card) !important;
 }
 /* Search input & clear button dark mode */
 :root[data-theme="dark"] .file-search .ant-input{
@@ -1487,11 +1414,148 @@ body{
   .toolbar-search-group{width:100%}
   .file-search{flex:1;width:auto}
   .upload-dock{width:calc(100% - 24px);right:12px;bottom:12px}
-  .content{padding:8px}
-  .topbar{padding:0 12px}
-  .panel{padding:12px}
 }
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
+/* ===== Custom Scrollbar ===== */
+/* WebKit (Chrome, Edge, Safari) */
+.app-main::-webkit-scrollbar{
+  width:8px;
+  height:8px;
+}
+.app-main::-webkit-scrollbar-track{
+  background:transparent;
+}
+.app-main::-webkit-scrollbar-thumb{
+  background:var(--text-soft);
+  border-radius:99px;
+  border:2px solid transparent;
+  background-clip:padding-box;
+}
+.app-main::-webkit-scrollbar-thumb:hover{
+  background:var(--text-secondary);
+  background-clip:padding-box;
+  border:2px solid transparent;
+}
+/* Firefox */
+.app-main{
+  scrollbar-width:thin;
+  scrollbar-color:var(--text-soft) transparent;
+}
 
+/* ===== Table body: hide scrollbar, prevent row stretch ===== */
+.premium-table .ant-table-body{
+  scrollbar-width:none !important;
+  -ms-overflow-style:none !important;
+}
+.premium-table .ant-table-body::-webkit-scrollbar{
+  display:none !important;
+}
+/* Prevent table from stretching vertically when fewer rows than scroll.y allows */
+.premium-table .ant-table-body > table{
+  height:auto !important;
+}
 
+/* ===== Comprehensive Dark Mode Overrides ===== */
+
+/* Message toast dark mode */
+:root[data-theme="dark"] .ant-message .ant-message-notice-content{
+  background:var(--card-glass) !important;
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--border) !important;
+  border-radius:12px !important;
+  box-shadow:0 8px 24px var(--shadow-md) !important;
+  color:var(--text) !important;
+}
+:root[data-theme="dark"] .ant-message .ant-message-custom-content span{
+  color:var(--text) !important;
+}
+
+/* Progress component dark mode */
+:root[data-theme="dark"] .ant-progress-trail{
+  background:var(--border) !important;
+}
+:root[data-theme="dark"] .ant-progress-text{
+  color:var(--text-secondary) !important;
+}
+
+/* File type icons dark mode — muted tinted backgrounds */
+:root[data-theme="dark"] .file-type-icon.doc{
+  background:rgba(54,91,255,0.15);
+  color:#6B8FFF;
+}
+:root[data-theme="dark"] .file-type-icon.sheet{
+  background:rgba(22,163,74,0.15);
+  color:#4ADE80;
+}
+:root[data-theme="dark"] .file-type-icon.slide{
+  background:rgba(217,119,6,0.15);
+  color:#FBBF24;
+}
+:root[data-theme="dark"] .file-type-icon.pdf{
+  background:rgba(229,72,77,0.15);
+  color:#F87171;
+}
+
+/* Drag overlay dark mode */
+:root[data-theme="dark"] .drag-overlay{
+  background:rgba(79,123,255,0.10);
+  border-color:var(--primary);
+}
+:root[data-theme="dark"] .drag-card{
+  box-shadow:0 16px 48px var(--shadow-md), 0 0 0 1px rgba(79,123,255,0.2);
+}
+
+/* Table body cell background in dark mode */
+:root[data-theme="dark"] .premium-table .ant-table-tbody > tr > td{
+  background:transparent !important;
+}
+:root[data-theme="dark"] .premium-table .ant-table-thead > tr > th{
+  background:transparent !important;
+}
+
+/* Select dropdown dark mode (global — for pagination size changer etc.) */
+:root[data-theme="dark"] .ant-select-dropdown{
+  background:var(--card-glass) !important;
+  border:1px solid var(--border) !important;
+  box-shadow:0 8px 32px var(--shadow-md) !important;
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+}
+:root[data-theme="dark"] .ant-select-dropdown .ant-select-item{
+  color:var(--text) !important;
+}
+:root[data-theme="dark"] .ant-select-dropdown .ant-select-item:hover{
+  background:var(--hover) !important;
+}
+:root[data-theme="dark"] .ant-select-dropdown .ant-select-item-option-selected{
+  background:var(--primary-soft) !important;
+}
+:root[data-theme="dark"] .ant-select-dropdown .ant-select-item-empty{
+  color:var(--text-soft) !important;
+}
+
+/* Dark-mode: prevent white flash from Table loading overlay & Spin */
+:root[data-theme="dark"] .ant-spin-nested-loading,
+:root[data-theme="dark"] .ant-spin-container,
+:root[data-theme="dark"] .ant-table,
+:root[data-theme="dark"] .ant-table-container{
+  background:transparent !important;
+}
+:root[data-theme="dark"] .ant-spin-blur{
+  opacity:.5;
+}
+:root[data-theme="dark"] .ant-spin-blur::after{
+  background:var(--card) !important;
+  opacity:.4 !important;
+}
+:root[data-theme="dark"] .ant-spin-dot-item{
+  background-color:var(--text-secondary) !important;
+}
+:root[data-theme="dark"] .ant-spin-text{
+  color:var(--text-secondary) !important;
+}
+:root[data-theme="dark"] .ant-table.ant-table-bordered .ant-table-header{
+  background:var(--card) !important;
+}

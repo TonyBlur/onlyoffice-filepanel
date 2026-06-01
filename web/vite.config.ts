@@ -12,8 +12,8 @@ export default defineConfig({
     },
     open: false,
     proxy: {
-      '/api': process.env.VITE_PROXY_TARGET || 'http://localhost:4000',
-      '/print': process.env.VITE_PROXY_TARGET || 'http://localhost:4000',
+      '/api': process.env.VITE_PROXY_TARGET || 'http://localhost:3000',
+      '/print': process.env.VITE_PROXY_TARGET || 'http://localhost:3000',
     },
   },
 });

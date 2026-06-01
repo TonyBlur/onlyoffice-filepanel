@@ -1,6 +1,5 @@
 export default {
   // App
-  'brand': 'OnlyOffice File Panel',
   'OnlyOffice': 'OnlyOffice',
   'File Panel': 'File Panel',
   'OnlyOffice File Panel': 'OnlyOffice File Panel',
@@ -28,22 +27,6 @@ export default {
   'theme.dark': 'Dark Mode',
   'theme.system': 'System',
 
-  // Theme / Auth (flat — react-i18next backward compat)
-  'Light Mode': 'Light Mode',
-  'Dark Mode': 'Dark Mode',
-  'System': 'System',
-  'Admin Login': 'Admin Login',
-  'Login': 'Login',
-  'Password': 'Password',
-  'Login successful': 'Login successful',
-  'Login failed': 'Login failed',
-  'Logout': 'Logout',
-  'Please input your password!': 'Please input your password!',
-
-  // Language
-  '简体中文': '简体中文',
-  'English': 'English',
-
   // Home page
   'New File': 'New File',
   'Upload File': 'Upload File',
@@ -69,11 +52,10 @@ export default {
   'Failed to create file': 'Failed to create file',
 
   // Upload
-  'Upload Files': 'Upload Files',
   'Uploading Files': 'Uploading Files',
   'Drop files here to upload': 'Drop files here to upload',
-  'File uploaded successfully': 'File uploaded successfully',
-  'File upload failed': 'File upload failed',
+  'Release to add documents to your workspace': 'Release to upload documents',
+  'Supported formats: DOCX, XLSX, PPTX, PDF, ODT, ODS, ODP': 'Supported: DOCX, XLSX, PPTX, PDF, ODT, ODS, ODP',
   'files.uploadSuccess': 'uploaded successfully',
   'files.uploadFailed': 'upload failed',
   'files.pause': 'Pause',
@@ -105,7 +87,6 @@ export default {
   'Warning': 'Warning',
   'Changing the file extension may make the file unusable. Are you sure you want to continue?': 'Changing the file extension may make the file unusable. Are you sure you want to continue?',
   'Continue': 'Continue',
-  'More': 'More',
   'Modified (Newest)': 'Modified (Newest)',
   'Modified (Oldest)': 'Modified (Oldest)',
   'Name (A-Z)': 'Name (A-Z)',
@@ -139,14 +120,12 @@ export default {
   'Please confirm that the Document Server is accessible.': 'Please confirm that the Document Server is accessible (e.g. http://localhost).',
   'Failed to initialize editor': 'Failed to initialize editor',
 
-  // Hero section extended
-  'Release to add documents to your workspace': 'Release to add documents to your workspace',
-  'Create, upload and edit office documents in a calmer, polished workspace.': 'Create, upload and edit office documents in a calmer, polished workspace.',
-  'Please use a larger screen or window to view the file list': 'Please use a larger screen or window to view the file list',
-
   // Empty state
   'No files yet': 'No files yet',
   'Create or upload files to get started': 'Create or upload files to get started',
   'No files match your search': 'No files match your search',
   'Try a different keyword': 'Try a different keyword',
+
+  // Pagination
+  'pagination.perPage': '/ page',
 } as const;

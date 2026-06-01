@@ -23,6 +23,6 @@ RUN npx tsc
 
 COPY --from=builder /app/dist ./dist/web/build
 
-EXPOSE 4000
+EXPOSE 3000
 CMD ["node", "dist/server.js"]
 

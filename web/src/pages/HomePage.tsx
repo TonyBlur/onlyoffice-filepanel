@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
-import { Button, Table, Modal, Input, Upload, message, Space, Popconfirm, Select, Progress, Card, Dropdown } from 'antd';
-import { UploadOutlined, PlusOutlined, FileTextOutlined, FilePdfOutlined, FileExcelOutlined, FilePptOutlined, FileOutlined, CloudUploadOutlined, EditOutlined, DeleteOutlined, FormOutlined, MinusCircleOutlined, CopyOutlined, DownloadOutlined, MoreOutlined, SortAscendingOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Button, Table, Modal, Input, Upload, message, Space, Popconfirm, Select, Progress, Card, Dropdown, Pagination } from 'antd';
+import { UploadOutlined, PlusOutlined, FileTextOutlined, FilePdfOutlined, FileExcelOutlined, FilePptOutlined, FileOutlined, CloudUploadOutlined, EditOutlined, DeleteOutlined, FormOutlined, MinusCircleOutlined, CopyOutlined, DownloadOutlined, MoreOutlined, SortAscendingOutlined, DownOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import { useOutletContext, useLocation } from 'react-router-dom';
 
-const ROW_HEIGHT_ESTIMATE = 74;
-const ROW_HEIGHT_PADDED = 82;
-const TABLE_HEADER_H = 44;
+/** Estimated fixed row height for table body calculation (px) */
+const TABLE_ROW_HEIGHT = 68;
 
 /** Shared file extension classification constants */
 const FILE_CATEGORIES = {
@@ -18,7 +17,6 @@ const FILE_CATEGORIES = {
 
 interface FileItem {
   name: string;
-  url?: string;
   mtime?: string;
   lastEdited?: string;
   mtimeMs?: number;
@@ -108,17 +106,15 @@ const HomePage: React.FC = () => {
   }, [hasActiveUploads]);
 
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(10);
+  const [perPage, setPerPage] = useState(5);
+  const [perPageOpen, setPerPageOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-  const tableShellRef = useRef<HTMLDivElement>(null);
-  const measuredRowHRef = useRef(ROW_HEIGHT_PADDED); // measured from DOM, starts at padded fallback
-
   // ---- Fetch all files ----
-  const fetchFiles = useCallback(async () => {
+  const fetchFiles = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const resp = await axios.get('/api/files?perPage=9999');
       const data = resp.data;
       if (Array.isArray(data)) {
@@ -129,9 +125,9 @@ const HomePage: React.FC = () => {
         setAllFiles([]);
       }
     } catch (error) {
-      messageApiRef.current.error(tRef.current('Failed to fetch files'));
+      if (!silent) messageApiRef.current.error(tRef.current('Failed to fetch files'));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -231,45 +227,11 @@ const HomePage: React.FC = () => {
     return filteredAndSortedFiles.slice(start, start + perPage);
   }, [filteredAndSortedFiles, page, perPage]);
 
-  // ---- Dynamic perPage based on viewport (stable, no feedback loop) ----
-  const lastPerPageRef = useRef(0);
-  const [tooSmall, setTooSmall] = useState(false);
-
+  // Track window width for responsive action buttons
   useEffect(() => {
-    const calcPerPage = () => {
-      const vh = window.innerHeight;
-      setWindowWidth(window.innerWidth);
-      // Fixed heights that don't depend on table content
-      const topbarH = 56;
-      const heroH = 86;
-      const toolbarH = 56;
-      const footerH = 24;
-      const paginationH = 56;
-      const panelPadding = 4; // border + shadow
-      const homePadding = 48; // 24 top + 24 bottom
-      const safetyMargin = 4;
-      // Reserve table header + row height buffer — no row may be clipped by even 1px
-      const reserved = topbarH + heroH + toolbarH + footerH + paginationH + panelPadding + homePadding + TABLE_HEADER_H + safetyMargin;
-
-      const rowH = ROW_HEIGHT_ESTIMATE; // close to actual for accurate count
-      const available = vh - reserved;
-      const rows = Math.floor(available / rowH);
-
-      if (rows < 1) {
-        setTooSmall(true);
-        setPerPage(1);
-      } else {
-        setTooSmall(false);
-        if (rows !== lastPerPageRef.current) {
-          lastPerPageRef.current = rows;
-          setPerPage(rows);
-        }
-      }
-    };
-
-    calcPerPage();
-    window.addEventListener('resize', calcPerPage);
-    return () => window.removeEventListener('resize', calcPerPage);
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Fetch files on mount
@@ -283,12 +245,24 @@ const HomePage: React.FC = () => {
   }, [typeFilter, searchQuery, sortBy, sortOrder]);
 
   // Re-fetch files when returning from editor (path changed back to home)
+  // The webhook may take a few seconds to process, so poll briefly to catch
+  // the updated lastEdited timestamp.  Uses silent mode to avoid loading flash.
   const prevPathRef = useRef(location.pathname);
   useEffect(() => {
-    if (prevPathRef.current.startsWith('/editor/') && location.pathname === '/') {
-      fetchFiles();
-    }
+    const wasEditor = prevPathRef.current.startsWith('/editor/');
     prevPathRef.current = location.pathname;
+
+    if (wasEditor && location.pathname === '/') {
+      fetchFiles(true);
+      // Poll every 1s for up to 15s (silent — no loading spinner)
+      let polls = 0;
+      const timer = setInterval(() => {
+        polls++;
+        fetchFiles(true);
+        if (polls >= 15) clearInterval(timer);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
   }, [location.pathname, fetchFiles]);
 
   // Adjust page when perPage changes to avoid out-of-range page
@@ -298,17 +272,6 @@ const HomePage: React.FC = () => {
       setPage(maxPage);
     }
   }, [perPage, totalCount, page]);
-
-  // Measure actual row height for accurate scroll.y calculation
-  useLayoutEffect(() => {
-    const shell = tableShellRef.current;
-    if (!shell) return;
-
-    const row = shell.querySelector('.ant-table-tbody tr:not(.ant-table-measure-row)') as HTMLElement | null;
-    if (row && row.offsetHeight > 0) {
-      measuredRowHRef.current = row.offsetHeight;
-    }
-  }, [perPage, paginatedFiles]);
 
   // Global drag-and-drop
   useEffect(() => {
@@ -546,6 +509,7 @@ const HomePage: React.FC = () => {
     {
       title: t('Actions'),
       key: 'actions',
+      width: 300,
       render: (_text: string, record: FileItem) => {
         const showEdit = true;
         const showDuplicate = windowWidth >= 900;
@@ -753,9 +717,12 @@ const HomePage: React.FC = () => {
       {isDragging && (
         <div className="drag-overlay">
           <div className="drag-card">
-            <CloudUploadOutlined />
-            <h2>{t('Drop files here to upload')}</h2>
-            <p>{t('Release to add documents to your workspace')}</p>
+            <div className="drag-card-icon">
+              <CloudUploadOutlined />
+            </div>
+            <h2 className="drag-card-title">{t('Drop files here to upload')}</h2>
+            <p className="drag-card-hint">{t('Release to add documents to your workspace')}</p>
+            <p className="drag-card-formats">{t('Supported formats: DOCX, XLSX, PPTX, PDF, ODT, ODS, ODP')}</p>
           </div>
         </div>
       )}
@@ -860,32 +827,47 @@ const HomePage: React.FC = () => {
             />
           </div>
         </div>
-        <div
-          ref={tableShellRef}
-          className="table-shell"
-        >
-          {tooSmall ? (
-            <div className="table-too-small">{t('Please use a larger screen or window to view the file list')}</div>
-          ) : (
+        <div className="table-shell">
           <Table
             className="premium-table"
             columns={columns}
             dataSource={paginatedFiles}
             rowKey="name"
             loading={loading}
-            scroll={{ y: perPage * ROW_HEIGHT_PADDED }}
-            pagination={{
-              current: page,
-              pageSize: perPage,
-              total: totalCount,
-              onChange: (p) => setPage(p),
-              showSizeChanger: false,
-              hideOnSinglePage: false,
-            }}
+            scroll={paginatedFiles.length > perPage ? { y: perPage * TABLE_ROW_HEIGHT } : undefined}
+            pagination={false}
             rowSelection={rowSelection}
             locale={{ emptyText: customEmpty }}
           />
-          )}
+          <div className="pagination-bar">
+            <Pagination
+              current={page}
+              pageSize={perPage}
+              total={totalCount}
+              onChange={(p) => setPage(p)}
+              showSizeChanger={false}
+              showQuickJumper={false}
+              size="default"
+            />
+            <Dropdown
+              menu={{
+                items: [5, 10, 20, 50].map(n => ({
+                  key: String(n),
+                  label: `${n} ${t('pagination.perPage')}`,
+                  onClick: () => { setPerPage(n); setPage(1); },
+                })),
+              }}
+              trigger={['click']}
+              placement="topRight"
+              open={perPageOpen}
+              onOpenChange={setPerPageOpen}
+            >
+              <button className={`size-changer-btn${perPageOpen ? ' open' : ''}`}>
+                <span className="size-changer-value">{perPage} {t('pagination.perPage')}</span>
+                <DownOutlined className="size-changer-arrow" />
+              </button>
+            </Dropdown>
+          </div>
         </div>
       </section>
 
@@ -974,7 +956,6 @@ const HomePage: React.FC = () => {
         </Card>
       )}
 
-      <div style={{ flex: '1 1 auto', minHeight: 0 }} />
     </div>
   );
 };

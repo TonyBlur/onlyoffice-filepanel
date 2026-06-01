@@ -8,10 +8,6 @@ import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
 import axios from 'axios';
 import multer from 'multer';
-import { exec } from 'child_process';
-import util from 'util';
-
-const execAsync = util.promisify(exec);
 
 const JWT_SECRET = process.env.DOC_SERVER_JWT_SECRET || 'your-secret-key';
 const COOKIE_NAME = 'auth_token';
@@ -31,9 +27,42 @@ const META_DIR = path.join(ROOT_DIR, 'server', 'data');
 const NAME_VERSIONS_FILE = path.join(META_DIR, 'nameVersions.json');
 const KEYMAP_FILE = path.join(META_DIR, 'keymap.json');
 const LAST_EDITED_FILE = path.join(FILE_DIR, '.meta', 'lastEditedTimes.json');
+const CONTENT_HASHES_FILE = path.join(FILE_DIR, '.meta', 'contentHashes.json');
 const DOC_SERVER_URL = process.env.DOC_SERVER_URL || 'http://localhost:80';
 const DOC_SERVER_JWT_SECRET = process.env.DOC_SERVER_JWT_SECRET || 'hUQTo541dF2UjKzO56Ux9jHOD62csevJ';
 const DOC_SERVER_INTERNAL_HOST = process.env.DOC_SERVER_INTERNAL_HOST || null;
+
+/**
+ * Rewrite a URL returned by the OnlyOffice Document Server so that it is
+ * reachable from inside the Docker container.  The Document Server often
+ * embeds its own `localhost:<port>` in webhook download URLs, which is
+ * unreachable from the app container.  We replace the host portion with
+ * `host.docker.internal` (or the host extracted from DOC_SERVER_INTERNAL_HOST).
+ */
+function rewriteDocServerUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    // Only rewrite if the URL points at localhost/127.0.0.1
+    if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
+      // Derive the replacement host from DOC_SERVER_INTERNAL_HOST if available,
+      // otherwise default to host.docker.internal
+      let replacementHost = 'host.docker.internal';
+      if (DOC_SERVER_INTERNAL_HOST) {
+        try {
+          const internalParsed = new URL(
+            DOC_SERVER_INTERNAL_HOST.startsWith('http') ? DOC_SERVER_INTERNAL_HOST : `http://${DOC_SERVER_INTERNAL_HOST}`
+          );
+          replacementHost = internalParsed.hostname;
+        } catch { /* fall back to default */ }
+      }
+      parsed.hostname = replacementHost;
+      const rewritten = parsed.toString();
+      console.log(`Rewrote webhook download URL: ${url} -> ${rewritten}`);
+      return rewritten;
+    }
+  } catch { /* return original if parsing fails */ }
+  return url;
+}
 
 try {
   fs.mkdirSync(FILE_DIR, { recursive: true });
@@ -77,6 +106,24 @@ function getUniqueFilename(dir: string, baseName: string): string {
 try { saveJsonSafe(KEYMAP_FILE, loadJsonSafe(KEYMAP_FILE)); } catch (e) { /* ignore */ }
 try { saveJsonSafe(NAME_VERSIONS_FILE, loadJsonSafe(NAME_VERSIONS_FILE)); } catch (e) { /* ignore */ }
 
+// One-time migration: clear stale lastEditedTimes.json that was polluted by
+// the old forcesave endpoint which recorded timestamps on every file open.
+// Flag is stored inside the mounted volume so it survives container recreation.
+const MIGRATION_FLAG = path.join(FILE_DIR, '.meta', '.migrated_lastEdited');
+if (!fs.existsSync(MIGRATION_FLAG)) {
+  try {
+    if (fs.existsSync(LAST_EDITED_FILE)) {
+      fs.unlinkSync(LAST_EDITED_FILE);
+      console.log('Migration: cleared stale lastEditedTimes.json');
+    }
+    fs.mkdirSync(path.dirname(MIGRATION_FLAG), { recursive: true });
+    fs.writeFileSync(MIGRATION_FLAG, new Date().toISOString());
+    console.log('Migration: marked lastEditedTimes migration complete');
+  } catch (e) {
+    console.warn('Migration failed:', (e as Error).message);
+  }
+}
+
 const storage = multer.diskStorage({
   destination: function (_req, _file, cb) {
     cb(null, FILE_DIR);
@@ -111,7 +158,6 @@ const checkAuth = (req: AuthRequest, res: Response, next: NextFunction) => {
 
 interface FileItem {
   name: string;
-  url: string;
   mtime: string | null;
   lastEdited: string | null;
   mtimeMs: number;
@@ -137,7 +183,6 @@ app.get('/api/files', checkAuth, (req: AuthRequest, res: Response) => {
       const trackedTime = editTimes[f];
       return {
         name: f,
-        url: `/files/${encodeURIComponent(f)}`,
         mtime: stat ? stat.mtime.toISOString() : null,
         lastEdited: trackedTime || (stat ? stat.mtime.toISOString() : null),
         mtimeMs: trackedTime ? new Date(trackedTime).getTime() : (stat ? stat.mtimeMs : 0),
@@ -189,38 +234,22 @@ app.get('/files/:name', (req: Request, res: Response) => {
   const name = path.basename(String(req.params.name));
   const filePath = path.join(FILE_DIR, name);
   if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
-  const asDownload = req.query.download === '1';
 
   let contentType = mime.getType(filePath) || 'application/octet-stream';
   if (!path.extname(name) && name.includes('document')) {
     contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   }
 
-  try {
-    const st = fs.statSync(filePath);
-    const etag = `${st.size}-${st.mtimeMs}`;
-    res.setHeader('ETag', etag);
-    res.setHeader('Last-Modified', new Date(st.mtimeMs).toUTCString());
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-
-    const inm = req.headers['if-none-match'];
-    if (inm && inm === etag) {
-      return res.status(304).end();
-    }
-  } catch (e) {
-    // ignore
-  }
-
-  if (asDownload) {
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}"`);
-    fs.createReadStream(filePath).pipe(res);
-  } else {
-    res.setHeader('Content-Type', contentType);
-    fs.createReadStream(filePath).pipe(res);
-  }
+  // Do NOT send ETag / Last-Modified headers.  When the webhook writes the
+  // saved file back to disk the mtime changes, and OnlyOffice would interpret
+  // the new ETag as "document changed externally" → onOutdatedVersion → the
+  // editor breaks.  Since the editor session is the single source of truth,
+  // we skip conditional-request support here.
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Content-Type', contentType);
+  fs.createReadStream(filePath).pipe(res);
 });
 
 app.put('/api/files/:name/rename', (req: Request, res: Response) => {
@@ -459,65 +488,17 @@ app.post('/api/files/upload-chunk/cancel', (req: Request, res: Response) => {
   }
 });
 
-// OnlyOffice forcesave on editor exit — ensures webhook fires and timestamp is recorded
-app.post('/api/forcesave-doc/:name', (req: Request, res: Response) => {
-  try {
-    const name = path.basename(String(req.params.name || ''));
-
-    // Record edit timestamp directly — guaranteed to persist
-    try {
-      const editTimes = loadJsonSafe(LAST_EDITED_FILE) as Record<string, string>;
-      editTimes[name] = new Date().toISOString();
-      saveJsonSafe(LAST_EDITED_FILE, editTimes);
-      console.log(`Recorded edit timestamp for '${name}' at ${editTimes[name]}`);
-    } catch (e) {
-      console.warn('Failed to record edit timestamp:', (e as Error).message);
-    }
-
-    // Best-effort: also trigger OnlyOffice forcesave to ensure webhook fires
-    const keyMap = loadJsonSafe(KEYMAP_FILE) as Record<string, string>;
-    const docKey = keyMap[name];
-    if (!docKey) {
-      return res.json({ ok: true, reason: 'no key for file, timestamp recorded' });
-    }
-
-    const cmdUrl = `${DOC_SERVER_URL}/coauthoring/CommandService.ashx`;
-    const payload = {
-      c: 'forcesave',
-      key: docKey,
-      userdata: JSON.stringify({ fileName: name, action: 'save-on-exit' })
-    };
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-    if (DOC_SERVER_JWT_SECRET) {
-      const tokenPayload = { payload, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 300 };
-      const token = jwt.sign(tokenPayload, DOC_SERVER_JWT_SECRET);
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    console.log(`Forcesaving document '${name}' (key: ${docKey}) via ${cmdUrl}`);
-
-    axios.post(cmdUrl, payload, { headers, timeout: 15000 })
-      .then(() => console.log(`Forcesave command sent for '${name}'`))
-      .catch(err => console.warn(`Forcesave command failed for '${name}':`, err.message));
-
-    res.json({ ok: true });
-  } catch (e) {
-    console.warn('Forcesave error:', (e as Error).message);
-    res.json({ ok: false, reason: (e as Error).message });
-  }
-});
+// (forcesave endpoint removed — OnlyOffice auto-saves on destroyEditor())
 
 app.post('/onlyoffice/webhook', (req: Request, res: Response) => {
   try {
-    const { key, status, url } = req.body || {};
+    const { key, status } = req.body || {};
+    // Rewrite the download URL so it's reachable from inside the Docker container
+    const url = req.body?.url ? rewriteDocServerUrl(String(req.body.url)) : undefined;
 
     console.log('Received webhook:', { key, status, url });
 
-    if (status === 2 && url) {
+    if ((status === 2 || status === 6) && url) {
       const fileNameFromKeymap = (function() {
         try {
           const keyMapFile = path.join(META_DIR, 'keymap.json');
@@ -542,22 +523,37 @@ app.post('/onlyoffice/webhook', (req: Request, res: Response) => {
 
         try {
           const fileData = fs.readFileSync(localPath);
+
+          // Compare content hash against OnlyOffice's LAST save (not the file
+          // on disk).  OnlyOffice re-encodes documents on save, so byte-level
+          // comparison with the disk file always shows "different" even when the
+          // user made no edits.  By tracking the hash of what OnlyOffice last
+          // sent us, we can detect whether the content genuinely changed
+          // between two webhook calls.
+          const newHash = crypto.createHash('sha256').update(fileData).digest('hex');
+          const hashes = loadJsonSafe(CONTENT_HASHES_FILE);
+          const prevHash = hashes[fileName] as string | undefined;
+          const contentChanged = !prevHash || prevHash !== newHash;
+
+          // Always write the file (keeps disk copy in sync with OnlyOffice)
           fs.writeFileSync(filePath, fileData);
-          console.log(`Document saved successfully to ${filePath}`);
+          hashes[fileName] = newHash;
+          saveJsonSafe(CONTENT_HASHES_FILE, hashes);
 
-          // Record edit timestamp
-          try {
-            const editTimes = loadJsonSafe(LAST_EDITED_FILE);
-            editTimes[fileName] = new Date().toISOString();
-            saveJsonSafe(LAST_EDITED_FILE, editTimes);
-          } catch (e) { /* ignore */ }
+          if (contentChanged) {
+            console.log(`Document saved to ${filePath} (content changed vs last webhook)`);
+            try {
+              const editTimes = loadJsonSafe(LAST_EDITED_FILE);
+              editTimes[fileName] = new Date().toISOString();
+              saveJsonSafe(LAST_EDITED_FILE, editTimes);
+            } catch (e) { /* ignore */ }
+          } else {
+            console.log(`Webhook for ${fileName}: content same as last save, skipping timestamp`);
+          }
 
-          try {
-            const versions = loadJsonSafe(NAME_VERSIONS_FILE);
-            versions[fileName] = (versions[fileName] as number || 0) + 1;
-            saveJsonSafe(NAME_VERSIONS_FILE, versions);
-            console.log('Incremented name version after webhook save (local):', fileName, versions[fileName]);
-          } catch (e) { console.warn('Failed to increment name version after local save:', (e as Error).message); }
+          // Do NOT increment nameVersions here — changing the version alters the document key,
+          // which causes OnlyOffice to show "version has changed" on next open and breaks editing.
+          // The document key should only change for external modifications (upload, create, delete, rename).
 
           res.json({ error: 0, message: 'Document saved successfully' });
         } catch (fileError) {
@@ -577,22 +573,30 @@ app.post('/onlyoffice/webhook', (req: Request, res: Response) => {
 
         axios.get(url, axiosConfig)
           .then(response => {
-            fs.writeFileSync(filePath, response.data);
-            console.log(`Document saved successfully to ${filePath}, size: ${response.data.length} bytes`);
+            const newData = Buffer.from(response.data);
 
-            // Record edit timestamp
-            try {
-              const editTimes = loadJsonSafe(LAST_EDITED_FILE);
-              editTimes[fileName] = new Date().toISOString();
-              saveJsonSafe(LAST_EDITED_FILE, editTimes);
-            } catch (e) { /* ignore */ }
+            // Hash-based comparison against OnlyOffice's last save
+            const newHash = crypto.createHash('sha256').update(newData).digest('hex');
+            const hashes = loadJsonSafe(CONTENT_HASHES_FILE);
+            const prevHash = hashes[fileName] as string | undefined;
+            const contentChanged = !prevHash || prevHash !== newHash;
 
-            try {
-              const versions = loadJsonSafe(NAME_VERSIONS_FILE);
-              versions[fileName] = (versions[fileName] as number || 0) + 1;
-              saveJsonSafe(NAME_VERSIONS_FILE, versions);
-              console.log('Incremented name version after webhook save:', fileName, versions[fileName]);
-            } catch (e) { console.warn('Failed to increment name version after save:', (e as Error).message); }
+            fs.writeFileSync(filePath, newData);
+            hashes[fileName] = newHash;
+            saveJsonSafe(CONTENT_HASHES_FILE, hashes);
+
+            if (contentChanged) {
+              console.log(`Document saved to ${filePath}, size: ${newData.length} bytes (content changed)`);
+              try {
+                const editTimes = loadJsonSafe(LAST_EDITED_FILE);
+                editTimes[fileName] = new Date().toISOString();
+                saveJsonSafe(LAST_EDITED_FILE, editTimes);
+              } catch (e) { /* ignore */ }
+            } else {
+              console.log(`Webhook for ${fileName}: content same as last save, skipping timestamp`);
+            }
+
+            // Do NOT increment nameVersions here — same reason as above.
 
             res.json({ error: 0, message: 'Document saved successfully' });
           })
@@ -666,8 +670,6 @@ interface EditorConfigResult {
   };
   docApiUrl: string;
   token: string;
-  browserUrl: string;
-  callbackUrl: string;
 }
 
 function buildEditorConfig(name: string, mode: string | undefined, externalHost: string): EditorConfigResult {
@@ -676,7 +678,6 @@ function buildEditorConfig(name: string, mode: string | undefined, externalHost:
 
   let downloadUrl = fileUrl;
   let callbackUrl = `${externalHost}/onlyoffice/webhook`;
-  let browserUrl = externalHost;
 
   if (DOC_SERVER_INTERNAL_HOST) {
     const hostWithProto = DOC_SERVER_INTERNAL_HOST.startsWith('http') ? DOC_SERVER_INTERNAL_HOST : `http://${DOC_SERVER_INTERNAL_HOST}`;
@@ -814,9 +815,7 @@ function buildEditorConfig(name: string, mode: string | undefined, externalHost:
   return {
     configObj,
     docApiUrl: `${docServer}/web-apps/apps/api/documents/api.js`,
-    token,
-    browserUrl,
-    callbackUrl
+    token
   };
 }
 
@@ -828,9 +827,7 @@ app.get('/api/editor-config/:name', (req: Request, res: Response) => {
   res.json({
     docConfig: result.configObj,
     docApiUrl: result.docApiUrl,
-    token: result.token,
-    browserUrl: result.browserUrl,
-    callbackUrl: result.callbackUrl
+    token: result.token
   });
 });
 
@@ -940,5 +937,5 @@ if (fs.existsSync(BUILD_DIR)) {
   console.warn('Frontend build directory not found at', BUILD_DIR);
 }
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on ${PORT}`));

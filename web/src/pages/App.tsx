@@ -126,6 +126,14 @@ export default function App(): React.ReactElement {
     setMenuOpen(false);
   };
 
+  const handleBackClick = () => {
+    // Just navigate back.  OnlyOffice will auto-save on editor destroy
+    // (triggered by component unmount) ONLY if the document was actually edited.
+    // No need to force-save — that was causing false "last edited" timestamps
+    // for files that were merely opened without any changes.
+    navigate('/');
+  };
+
   const isEditorPage = location.pathname.startsWith('/editor/');
 
   const themeIcon = theme === 'dark' ? <MoonOutlined /> : <SunOutlined />;
@@ -156,7 +164,7 @@ export default function App(): React.ReactElement {
     <div className="app-shell">
       <nav className="app-topbar">
         {isEditorPage ? (
-          <button className="glass-icon-btn back-btn" onClick={() => navigate('/')}>
+          <button className="glass-icon-btn back-btn" onClick={handleBackClick}>
             <ArrowLeftOutlined /> <span className="back-label">{t('Back')}</span>
           </button>
         ) : (

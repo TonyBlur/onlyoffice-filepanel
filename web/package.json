@@ -2,7 +2,6 @@
   "name": "onlyoffice-filepanel-frontend",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://backend:4000",
   "scripts": {
     "start": "vite",
     "build": "tsc && vite build",
@@ -10,7 +9,6 @@
   },
   "dependencies": {
     "antd": "^5.27.4",
-    "antd-style": "^3.7.1",
     "axios": "1.4.0",
     "i18next": "^25.5.2",
     "i18next-browser-languagedetector": "^8.2.0",
@@ -26,17 +24,5 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^6.0.3",
     "vite": "^6.3.5"
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
   }
 }
