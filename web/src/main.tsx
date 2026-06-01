@@ -8,10 +8,19 @@ import HomePage from './pages/HomePage';
 import EditorPage from './pages/EditorPage';
 import './styles.css';
 
+/** Resolve initial theme synchronously to avoid first-render flash.
+ *  Must match the logic in App.tsx's resolveTheme(). */
+function getInitialIsDark(): boolean {
+  const saved = localStorage.getItem('theme');
+  const pref = saved || 'system';
+  if (pref === 'system') {
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  }
+  return pref === 'dark';
+}
+
 function AntdThemeWrapper({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(() => {
-    return document.documentElement.getAttribute('data-theme') === 'dark';
-  });
+  const [isDark, setIsDark] = useState(getInitialIsDark);
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -39,6 +48,9 @@ const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element not found');
 }
+
+// Set data-theme before React render so CSS variables are correct from first paint
+document.documentElement.setAttribute('data-theme', getInitialIsDark() ? 'dark' : 'light');
 
 const root = ReactDOM.createRoot(rootElement);
 root.render(
