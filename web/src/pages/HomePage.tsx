@@ -299,24 +299,14 @@ const HomePage: React.FC = () => {
     }
   }, [perPage, totalCount, page]);
 
-  // Lock table body height — set CSS variable + directly on table body for reliability
+  // Measure actual row height for accurate scroll.y calculation
   useLayoutEffect(() => {
     const shell = tableShellRef.current;
     if (!shell) return;
 
-    // Measure actual row height from DOM (skip Ant Design's measure row)
     const row = shell.querySelector('.ant-table-tbody tr:not(.ant-table-measure-row)') as HTMLElement | null;
     if (row && row.offsetHeight > 0) {
       measuredRowHRef.current = row.offsetHeight;
-    }
-
-    const h = `${perPage * measuredRowHRef.current}px`;
-    shell.style.setProperty('--table-body-h', h);
-
-    // Also set max-height directly on the table body to avoid CSS variable timing issues
-    const tableBody = shell.querySelector('.ant-table-body') as HTMLElement | null;
-    if (tableBody) {
-      tableBody.style.maxHeight = h;
     }
   }, [perPage, paginatedFiles]);
 
