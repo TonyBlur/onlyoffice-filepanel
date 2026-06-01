@@ -623,8 +623,7 @@ body{
 .table-shell .ant-table-wrapper .ant-table-body{
   overflow-y:auto !important;
   overflow-x:hidden !important;
-  /* Height locked by CSS variable — JS measures actual row height for accuracy */
-  height:var(--table-body-h, 0px) !important;
+  /* Max-height locked by JS useLayoutEffect; fallback to none so table is always visible */
   max-height:var(--table-body-h, none) !important;
 }
 

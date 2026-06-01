@@ -299,7 +299,7 @@ const HomePage: React.FC = () => {
     }
   }, [perPage, totalCount, page]);
 
-  // Lock table body height via CSS variable + measure actual row height for accuracy
+  // Lock table body height — set CSS variable + directly on table body for reliability
   useLayoutEffect(() => {
     const shell = tableShellRef.current;
     if (!shell) return;
@@ -310,8 +310,14 @@ const HomePage: React.FC = () => {
       measuredRowHRef.current = row.offsetHeight;
     }
 
-    const h = perPage * measuredRowHRef.current;
-    shell.style.setProperty('--table-body-h', `${h}px`);
+    const h = `${perPage * measuredRowHRef.current}px`;
+    shell.style.setProperty('--table-body-h', h);
+
+    // Also set max-height directly on the table body to avoid CSS variable timing issues
+    const tableBody = shell.querySelector('.ant-table-body') as HTMLElement | null;
+    if (tableBody) {
+      tableBody.style.maxHeight = h;
+    }
   }, [perPage, paginatedFiles]);
 
   // Global drag-and-drop
