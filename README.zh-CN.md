@@ -15,10 +15,11 @@ onlyoffice-filepanel/
 │   ├── data/        # 文件持久化存储（挂载为主机卷）
 │   └── templates/   # 新建文件用的空白模板
 ├── web/             # React 18 + Ant Design 5 前端
-├── server.js        # 统一入口（同时提供 API 和静态前端）
+├── server.ts        # Express 入口（同时提供 API 和静态前端）
 ├── package.json     # 合并后的依赖
 ├── Dockerfile       # 多阶段构建 → 单一镜像
-└── docker-compose.yml  # 单服务，端口 4000
+├── docker-compose.build.yml  # 本地构建镜像
+└── docker-compose.image.yml  # 使用已发布镜像
 ```
 
 ## 🚀 快速开始
@@ -52,7 +53,7 @@ onlyoffice-filepanel/
    ```
 2. 启动服务：
    ```bash
-   docker-compose up --build
+   docker compose -f docker-compose.build.yml up --build
    ```
 3. 浏览器访问 **http://localhost:4000**
 
@@ -66,7 +67,7 @@ onlyoffice-filepanel/
 2. 从仓库根目录启动服务：
    ```bash
    npm install
-   DOC_SERVER_JWT_SECRET=your-secret node server.js
+   DOC_SERVER_JWT_SECRET=your-secret npm run build && npm start
    ```
 3. 打开 **http://localhost:4000**
 
@@ -95,3 +96,4 @@ onlyoffice-filepanel/
 ## 📜 许可证
 本项目采用 MIT 许可证。许可证全文见仓库根目录的 `LICENSE` 文件。
 版权所有：TonyBlur © 2025
+

@@ -1,6 +1,8 @@
 services:
   app:
-    image: ${OOFP_IMAGE:-ghcr.io/OWNER/onlyoffice-filepanel:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       DOC_SERVER_URL: ${DOC_SERVER_URL:-http://localhost:8380}
       DOC_SERVER_INTERNAL_HOST: ${DOC_SERVER_INTERNAL_HOST:-http://host.docker.internal:4000}

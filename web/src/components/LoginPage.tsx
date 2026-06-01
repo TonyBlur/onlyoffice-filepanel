@@ -1,13 +1,19 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, KeyboardEvent, ChangeEvent } from 'react';
 import { Modal, Button, App } from 'antd';
 import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 
-const LoginPage = ({ visible, onCancel, onLoginSuccess }) => {
+interface LoginPageProps {
+  visible: boolean;
+  onCancel: () => void;
+  onLoginSuccess: () => void;
+}
+
+const LoginPage: React.FC<LoginPageProps> = ({ visible, onCancel, onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { t } = useTranslation();
   const { message } = App.useApp();
 
@@ -23,11 +29,11 @@ const LoginPage = ({ visible, onCancel, onLoginSuccess }) => {
         message.success(t('Login successful'));
         setPassword('');
         setShowPassword(false);
-        onLoginSuccess && onLoginSuccess();
+        onLoginSuccess();
       } else {
         message.error(t('Login failed'));
       }
-    } catch (error) {
+    } catch {
       message.error(t('Login failed'));
     }
   };
@@ -35,10 +41,10 @@ const LoginPage = ({ visible, onCancel, onLoginSuccess }) => {
   const handleCancel = () => {
     setPassword('');
     setShowPassword(false);
-    onCancel && onCancel();
+    onCancel();
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleLogin();
     }
@@ -59,7 +65,7 @@ const LoginPage = ({ visible, onCancel, onLoginSuccess }) => {
             className="login-input"
             placeholder={t('Password')}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
             onKeyDown={handleKeyDown}
           />
           <button

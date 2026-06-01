@@ -1,5 +1,6 @@
 export default {
   // App
+  'brand': 'OnlyOffice File Panel',
   'OnlyOffice': 'OnlyOffice',
   'File Panel': 'File Panel',
   'OnlyOffice File Panel': 'OnlyOffice File Panel',
@@ -8,12 +9,29 @@ export default {
   'Account': 'Account',
   'Back': 'Back',
 
-  // Theme
+  // Login Modal
+  'login.title': 'Admin Login',
+  'login.password': 'Password',
+  'login.error': 'Login failed, please check password',
+  'login.cancel': 'Cancel',
+  'login.submit': 'Login',
+
+  // Auth labels (for menu)
+  'auth.login': 'Login',
+  'auth.logout': 'Logout',
+  'auth.loggedIn': 'Login successful',
+  'auth.loggedOut': 'Logged out',
+  'auth.logoutFailed': 'Logout failed',
+
+  // Theme labels (for menu)
+  'theme.light': 'Light Mode',
+  'theme.dark': 'Dark Mode',
+  'theme.system': 'System',
+
+  // Theme / Auth (flat — react-i18next backward compat)
   'Light Mode': 'Light Mode',
   'Dark Mode': 'Dark Mode',
   'System': 'System',
-
-  // Auth
   'Admin Login': 'Admin Login',
   'Login': 'Login',
   'Password': 'Password',
@@ -40,6 +58,7 @@ export default {
   'Yes': 'Yes',
   'No': 'No',
   'Cancel': 'Cancel',
+  'Confirm': 'Confirm',
 
   // Create file modal
   'Create New File': 'Create New File',
@@ -101,7 +120,8 @@ export default {
   '{{day}} days ago': '{{day}} days ago',
 
   // Hero section
-  'Total files': 'Total files',
+  'Last Edited': 'Last Edited',
+  'Uploaded': 'Uploaded',
   'Uploading': 'Uploading',
   'All': 'All',
   'Docs': 'Docs',
@@ -122,4 +142,11 @@ export default {
   // Hero section extended
   'Release to add documents to your workspace': 'Release to add documents to your workspace',
   'Create, upload and edit office documents in a calmer, polished workspace.': 'Create, upload and edit office documents in a calmer, polished workspace.',
-}
+  'Please use a larger screen or window to view the file list': 'Please use a larger screen or window to view the file list',
+
+  // Empty state
+  'No files yet': 'No files yet',
+  'Create or upload files to get started': 'Create or upload files to get started',
+  'No files match your search': 'No files match your search',
+  'Try a different keyword': 'Try a different keyword',
+} as const;

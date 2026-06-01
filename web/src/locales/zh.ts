@@ -1,5 +1,6 @@
 export default {
   // App
+  'brand': 'OnlyOffice 文件面板',
   'OnlyOffice': 'OnlyOffice',
   'File Panel': '文件面板',
   'OnlyOffice File Panel': 'OnlyOffice 文件面板',
@@ -8,12 +9,29 @@ export default {
   'Account': '账户',
   'Back': '返回',
 
-  // Theme
+  // Login Modal
+  'login.title': '管理员登录',
+  'login.password': '密码',
+  'login.error': '登录失败，请检查密码',
+  'login.cancel': '取消',
+  'login.submit': '登录',
+
+  // Auth labels (for menu)
+  'auth.login': '登录',
+  'auth.logout': '退出登录',
+  'auth.loggedIn': '登录成功',
+  'auth.loggedOut': '已退出登录',
+  'auth.logoutFailed': '退出失败',
+
+  // Theme labels (for menu)
+  'theme.light': '浅色模式',
+  'theme.dark': '深色模式',
+  'theme.system': '跟随系统',
+
+  // Theme / Auth (flat — react-i18next backward compat)
   'Light Mode': '浅色模式',
   'Dark Mode': '深色模式',
   'System': '跟随系统',
-
-  // Auth
   'Admin Login': '管理员登录',
   'Login': '登录',
   'Password': '密码',
@@ -40,6 +58,7 @@ export default {
   'Yes': '是',
   'No': '否',
   'Cancel': '取消',
+  'Confirm': '确认',
 
   // Create file modal
   'Create New File': '创建新文件',
@@ -101,7 +120,8 @@ export default {
   '{{day}} days ago': '{{day}} 天前',
 
   // Hero section
-  'Total files': '总文件数',
+  'Last Edited': '最近编辑',
+  'Uploaded': '已上传',
   'Uploading': '上传中',
   'All': '全部',
   'Docs': '文档',
@@ -122,4 +142,11 @@ export default {
   // Hero section extended
   'Release to add documents to your workspace': '松开鼠标即可上传文件',
   'Create, upload and edit office documents in a calmer, polished workspace.': '在更优雅的工作空间中创建、上传和编辑办公文档。',
-}
+  'Please use a larger screen or window to view the file list': '请使用更大的屏幕或窗口查看文件列表',
+
+  // Empty state
+  'No files yet': '暂无文件',
+  'Create or upload files to get started': '创建或上传文件以开始使用',
+  'No files match your search': '没有匹配的文件',
+  'Try a different keyword': '尝试其他关键词',
+} as const;

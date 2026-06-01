@@ -1,12 +1,12 @@
 {
   "name": "onlyoffice-filepanel",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "node server.js",
-    "build": "cd web && npm install && npm run build",
+    "start": "node dist/server.js",
+    "build": "node scripts/clean-dist.js && tsc && npm --prefix web run build && node scripts/copy-web-build.js",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
-    "dev:server": "node server.js",
+    "dev:server": "ts-node server.ts",
     "dev:web": "cd web && npm start"
   },
   "dependencies": {
@@ -17,5 +17,17 @@
     "jsonwebtoken": "^9.0.2",
     "mime": "^3.0.0",
     "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/mime": "^3.0.4",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.6.0",
+    "concurrently": "^9.2.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
   }
 }

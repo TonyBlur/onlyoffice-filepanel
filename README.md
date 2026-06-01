@@ -15,10 +15,11 @@ onlyoffice-filepanel/
 │   ├── data/        # Persistent file storage (mapped as host volume)
 │   └── templates/   # Blank templates for new file creation
 ├── web/             # React 18 + Ant Design 5 frontend
-├── server.js        # Unified entry point (serves API + static frontend)
+├── server.ts        # Express entry point (serves API + static frontend)
 ├── package.json     # Combined dependencies
 ├── Dockerfile       # Multi-stage build → single image
-└── docker-compose.yml  # Single service, port 4000
+├── docker-compose.build.yml  # Build image locally
+└── docker-compose.image.yml  # Run published image
 ```
 
 ## 🚀 Quick start
@@ -52,7 +53,7 @@ This project does **NOT** include ONLYOFFICE Document Server; you need to deploy
    ```
 2. Start the service:
    ```bash
-   docker-compose up --build
+   docker compose -f docker-compose.build.yml up --build
    ```
 3. Access the UI at **http://localhost:4000**
 
@@ -66,7 +67,7 @@ This project does **NOT** include ONLYOFFICE Document Server; you need to deploy
 2. Start the server (from repo root):
    ```bash
    npm install
-   DOC_SERVER_JWT_SECRET=your-secret node server.js
+   DOC_SERVER_JWT_SECRET=your-secret npm run build && npm start
    ```
 3. Open **http://localhost:4000**
 
@@ -94,3 +95,4 @@ See [Install Fonts](./Install_Fonts.md)
 
 ## 📜 License
 This project is licensed under the MIT License. See `LICENSE` in the repository root.
+

@@ -1,15 +1,16 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const cors = require('cors');
-const mime = require('mime');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const cookieParser = require('cookie-parser');
-const axios = require('axios');
-const multer = require('multer');
-const { exec } = require('child_process');
-const util = require('util');
+import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
+import fs from 'fs';
+import cors from 'cors';
+import mime from 'mime';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import cookieParser from 'cookie-parser';
+import axios from 'axios';
+import multer from 'multer';
+import { exec } from 'child_process';
+import util from 'util';
+
 const execAsync = util.promisify(exec);
 
 const JWT_SECRET = process.env.DOC_SERVER_JWT_SECRET || 'your-secret-key';
@@ -21,49 +22,46 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-// simple base64 upload (no extra deps)
+// When running from compiled output (dist/server.js), __dirname is /app/dist/,
+// so we need to resolve paths relative to the project root (/app/).
+const ROOT_DIR = path.resolve(__dirname, '..');
 
-// store files under the app folder so docker-compose volume ./data/files maps to it
-const FILE_DIR = path.join(__dirname, 'data', 'files');
-const META_DIR = path.join(__dirname, 'data');
+const FILE_DIR = path.join(ROOT_DIR, 'server', 'data', 'files');
+const META_DIR = path.join(ROOT_DIR, 'server', 'data');
 const NAME_VERSIONS_FILE = path.join(META_DIR, 'nameVersions.json');
 const KEYMAP_FILE = path.join(META_DIR, 'keymap.json');
+const LAST_EDITED_FILE = path.join(FILE_DIR, '.meta', 'lastEditedTimes.json');
 const DOC_SERVER_URL = process.env.DOC_SERVER_URL || 'http://localhost:80';
 const DOC_SERVER_JWT_SECRET = process.env.DOC_SERVER_JWT_SECRET || 'hUQTo541dF2UjKzO56Ux9jHOD62csevJ';
-// Use a single environment variable DOC_SERVER_INTERNAL_HOST to specify an address
-// that Document Server should use to reach this backend (e.g. "http://192.168.23.100:4000" or "http://backend:4000").
-// If not set, backend will use the external host as seen by the browser.
 const DOC_SERVER_INTERNAL_HOST = process.env.DOC_SERVER_INTERNAL_HOST || null;
-// Ensure file directory exists at startup
+
 try {
   fs.mkdirSync(FILE_DIR, { recursive: true });
 } catch (e) {
-  console.error('Failed to create file directory:', e.message);
+  console.error('Failed to create file directory:', (e as Error).message);
 }
 
-// --- helper functions for simple JSON metadata persistence ---
-function loadJsonSafe(fp) {
+function loadJsonSafe(fp: string): Record<string, unknown> {
   try {
     if (fs.existsSync(fp)) {
       return JSON.parse(fs.readFileSync(fp, 'utf8') || '{}');
     }
   } catch (e) {
-    console.warn('Failed to load JSON', fp, e.message);
+    console.warn('Failed to load JSON', fp, (e as Error).message);
   }
   return {};
 }
 
-function saveJsonSafe(fp, obj) {
+function saveJsonSafe(fp: string, obj: unknown) {
   try {
     fs.mkdirSync(path.dirname(fp), { recursive: true });
     fs.writeFileSync(fp, JSON.stringify(obj || {}, null, 2));
   } catch (e) {
-    console.warn('Failed to save JSON', fp, e.message);
+    console.warn('Failed to save JSON', fp, (e as Error).message);
   }
 }
 
-// Generate a unique filename by appending (1), (2), etc. if file exists
-function getUniqueFilename(dir, baseName) {
+function getUniqueFilename(dir: string, baseName: string): string {
   const ext = path.extname(baseName);
   const nameWithoutExt = path.basename(baseName, ext);
   let candidate = baseName;
@@ -71,60 +69,39 @@ function getUniqueFilename(dir, baseName) {
   while (fs.existsSync(path.join(dir, candidate))) {
     candidate = `${nameWithoutExt} (${counter})${ext}`;
     counter++;
-    if (counter > 999) break; // safety limit
+    if (counter > 999) break;
   }
   return candidate;
 }
 
-// Ensure meta files exist
-try { saveJsonSafe(KEYMAP_FILE, loadJsonSafe(KEYMAP_FILE)); } catch (e) {}
-try { saveJsonSafe(NAME_VERSIONS_FILE, loadJsonSafe(NAME_VERSIONS_FILE)); } catch (e) {}
+try { saveJsonSafe(KEYMAP_FILE, loadJsonSafe(KEYMAP_FILE)); } catch (e) { /* ignore */ }
+try { saveJsonSafe(NAME_VERSIONS_FILE, loadJsonSafe(NAME_VERSIONS_FILE)); } catch (e) { /* ignore */ }
 
-// --- cleanup zero-byte files at startup to avoid invalid files lingering ---
-// --- cleanup zero-byte files at startup to avoid invalid files lingering ---
-// try {
-//   const startupFiles = fs.readdirSync(FILE_DIR || '.');
-//   startupFiles.forEach(f => {
-//     const p = path.join(FILE_DIR, f);
-//     try {
-//       const st = fs.statSync(p);
-//       if (st && st.size === 0) {
-//         fs.unlinkSync(p);
-//         console.warn('Removed zero-size file at startup:', p);
-//       }
-//     } catch (e) {
-//       // ignore
-//     }
-//   });
-// } catch (e) {
-//   // ignore
-// }
-
-// Configure multer for multipart/form-data uploads (standard full-file upload)
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
+  destination: function (_req, _file, cb) {
     cb(null, FILE_DIR);
   },
-  filename: function (req, file, cb) {
-    // sanitize filename
+  filename: function (_req, file, cb) {
     const safeName = path.basename(file.originalname);
     cb(null, safeName);
   }
 });
 const upload = multer({ storage });
 
-// Multer memory storage for chunked uploads (we will append buffers)
 const uploadMemory = multer({ storage: multer.memoryStorage() });
 
-// Middleware to check auth from cookie
-const checkAuth = (req, res, next) => {
+interface AuthRequest extends Request {
+  user?: { role: string };
+}
+
+const checkAuth = (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.cookies[COOKIE_NAME];
   if (!token) {
     req.user = { role: 'guest' };
     return next();
   }
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET) as { role: string };
     req.user = decoded;
   } catch (e) {
     req.user = { role: 'guest' };
@@ -132,25 +109,42 @@ const checkAuth = (req, res, next) => {
   next();
 };
 
-app.get('/api/files', checkAuth, (req, res) => {
-  // Supports pagination: ?page=1&perPage=10
-  // Returns { items: [...], total, page, perPage, totalPages }
+interface FileItem {
+  name: string;
+  url: string;
+  mtime: string | null;
+  lastEdited: string | null;
+  mtimeMs: number;
+  size: number;
+}
+
+app.get('/api/files', checkAuth, (req: AuthRequest, res: Response) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   try {
-    const rawFiles = fs.readdirSync(FILE_DIR || '.');
-    const items = rawFiles.map(f => {
+    const rawFiles = fs.readdirSync(FILE_DIR || '.').filter(f => {
+      if (f.startsWith('.')) return false;
+      const fp = path.join(FILE_DIR, f);
+      try { return fs.statSync(fp).isFile(); } catch { return false; }
+    });
+    const editTimes = loadJsonSafe(LAST_EDITED_FILE) as Record<string, string>;
+    const items: FileItem[] = rawFiles.map(f => {
       const p = path.join(FILE_DIR, f);
       let stat = null;
-      try { stat = fs.statSync(p); } catch (e) { stat = null }
+      try { stat = fs.statSync(p); } catch (e) { stat = null; }
+      const trackedTime = editTimes[f];
       return {
         name: f,
         url: `/files/${encodeURIComponent(f)}`,
         mtime: stat ? stat.mtime.toISOString() : null,
-        mtimeMs: stat ? stat.mtimeMs : 0,
+        lastEdited: trackedTime || (stat ? stat.mtime.toISOString() : null),
+        mtimeMs: trackedTime ? new Date(trackedTime).getTime() : (stat ? stat.mtimeMs : 0),
         size: stat ? stat.size : 0
       };
     });
 
-    // sort
     const sortBy = req.query.sortBy || 'mtime';
     const sortOrder = req.query.sortOrder || 'desc';
     items.sort((a, b) => {
@@ -161,19 +155,17 @@ app.get('/api/files', checkAuth, (req, res) => {
       return sortOrder === 'asc' ? cmp : -cmp;
     });
 
-    // search filter
     const searchQuery = req.query.search || '';
     let filteredItems = items;
     if (searchQuery) {
-      const lowerSearch = searchQuery.toLowerCase();
+      const lowerSearch = String(searchQuery).toLowerCase();
       filteredItems = items.filter(f => f.name.toLowerCase().includes(lowerSearch));
     }
 
-    const role = (req.query.role || 'guest');
-    // parse pagination params
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const role = String(req.query.role || 'guest');
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
     const defaultPerPage = role === 'admin' ? 20 : 5;
-    const perPage = Math.max(1, parseInt(req.query.perPage, 10) || defaultPerPage);
+    const perPage = Math.max(1, parseInt(req.query.perPage as string, 10) || defaultPerPage);
 
     const total = filteredItems.length;
     const totalPages = Math.max(1, Math.ceil(total / perPage));
@@ -189,23 +181,21 @@ app.get('/api/files', checkAuth, (req, res) => {
       totalPages
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: (e as Error).message });
   }
 });
 
-app.get('/files/:name', (req, res) => {
-  const name = req.params.name;
+app.get('/files/:name', (req: Request, res: Response) => {
+  const name = path.basename(String(req.params.name));
   const filePath = path.join(FILE_DIR, name);
   if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
   const asDownload = req.query.download === '1';
-  
-  // Handle files without extensions
+
   let contentType = mime.getType(filePath) || 'application/octet-stream';
   if (!path.extname(name) && name.includes('document')) {
     contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   }
 
-  // Add strong no-cache headers and ETag to avoid caches serving stale content
   try {
     const st = fs.statSync(filePath);
     const etag = `${st.size}-${st.mtimeMs}`;
@@ -215,18 +205,17 @@ app.get('/files/:name', (req, res) => {
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    // If client has matching ETag, respond 304 Not Modified
     const inm = req.headers['if-none-match'];
     if (inm && inm === etag) {
       return res.status(304).end();
     }
   } catch (e) {
-    // ignore stat failures
+    // ignore
   }
-  
+
   if (asDownload) {
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${name}.docx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(name)}"`);
     fs.createReadStream(filePath).pipe(res);
   } else {
     res.setHeader('Content-Type', contentType);
@@ -234,10 +223,9 @@ app.get('/files/:name', (req, res) => {
   }
 });
 
-// Rename file
-app.put('/api/files/:name/rename', (req, res) => {
+app.put('/api/files/:name/rename', (req: Request, res: Response) => {
   try {
-    const name = req.params.name;
+    const name = path.basename(String(req.params.name));
     const { newName } = req.body || {};
     if (!newName) return res.status(400).json({ error: 'missing newName' });
 
@@ -250,11 +238,10 @@ app.put('/api/files/:name/rename', (req, res) => {
 
     fs.renameSync(oldPath, newPath);
 
-    // Update keymap references
     try {
-      const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+      const keyMapFile = path.join(META_DIR, 'keymap.json');
       if (fs.existsSync(keyMapFile)) {
-        let map = {};
+        let map: Record<string, string> = {};
         try { map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}'); } catch (e) { map = {}; }
         let changed = false;
         for (const k of Object.keys(map)) {
@@ -266,19 +253,18 @@ app.put('/api/files/:name/rename', (req, res) => {
         if (changed) fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2));
       }
     } catch (e) {
-      console.warn('Failed to update keymap after rename:', e.message);
+      console.warn('Failed to update keymap after rename:', (e as Error).message);
     }
 
     res.json({ ok: true, name: safeNewName });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
-// Duplicate file
-app.post('/api/files/:name/duplicate', (req, res) => {
+app.post('/api/files/:name/duplicate', (req: Request, res: Response) => {
   try {
-    const name = req.params.name;
+    const name = path.basename(String(req.params.name));
     const srcPath = path.join(FILE_DIR, name);
     if (!fs.existsSync(srcPath)) return res.status(404).json({ error: 'not found' });
 
@@ -289,15 +275,13 @@ app.post('/api/files/:name/duplicate', (req, res) => {
 
     fs.copyFileSync(srcPath, destPath);
 
-    // Copy keymap entry if exists
     try {
-      const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+      const keyMapFile = path.join(META_DIR, 'keymap.json');
       if (fs.existsSync(keyMapFile)) {
         let map = loadJsonSafe(keyMapFile);
         let changed = false;
         for (const k of Object.keys(map)) {
           if (map[k] === name) {
-            // Generate new key for duplicated file
             const newKey = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
             map[newKey] = dupName;
             changed = true;
@@ -306,19 +290,18 @@ app.post('/api/files/:name/duplicate', (req, res) => {
         if (changed) saveJsonSafe(keyMapFile, map);
       }
     } catch (e) {
-      console.warn('Failed to copy keymap after duplicate:', e.message);
+      console.warn('Failed to copy keymap after duplicate:', (e as Error).message);
     }
 
     res.json({ ok: true, name: dupName });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
-// Download file
-app.get('/api/files/:name/download', (req, res) => {
+app.get('/api/files/:name/download', (req: Request, res: Response) => {
   try {
-    const name = req.params.name;
+    const name = path.basename(String(req.params.name));
     const filePath = path.join(FILE_DIR, name);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'not found' });
 
@@ -328,31 +311,27 @@ app.get('/api/files/:name/download', (req, res) => {
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
-// Delete file (basic)
-app.delete('/api/files/:name', (req, res) => {
-  const name = req.params.name;
+app.delete('/api/files/:name', (req: Request, res: Response) => {
+  const name = path.basename(String(req.params.name));
   const filePath = path.join(FILE_DIR, name);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'not found' });
   try {
     fs.unlinkSync(filePath);
 
-    // Also remove any keymap entries referencing this filename and delete files saved by document server under the key
     try {
-      const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+      const keyMapFile = path.join(META_DIR, 'keymap.json');
       if (fs.existsSync(keyMapFile)) {
-        let map = {};
+        let map: Record<string, string> = {};
         try { map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}'); } catch (e) { map = {}; }
         let changed = false;
         for (const k of Object.keys(map)) {
           if (map[k] === name) {
-            // remove mapping
             delete map[k];
             changed = true;
-            // attempt to delete potential saved files under the key
             const candidates = [
               path.join(FILE_DIR, k),
               path.join(FILE_DIR, `${k}.docx`),
@@ -367,48 +346,44 @@ app.delete('/api/files/:name', (req, res) => {
                   console.log('Removed associated key-file:', p);
                 }
               } catch (e) {
-                console.warn('Failed to remove associated key-file', p, e.message);
+                console.warn('Failed to remove associated key-file', p, (e as Error).message);
               }
             });
           }
         }
         if (changed) {
-          try { fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2)); } catch (e) { console.warn('Failed to persist keymap after delete:', e.message); }
+          try { fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2)); } catch (e) { console.warn('Failed to persist keymap after delete:', (e as Error).message); }
         }
       }
 
-      // increment version for this filename so future document.key will differ
       try {
         const versions = loadJsonSafe(NAME_VERSIONS_FILE);
-        versions[name] = (versions[name] || 0) + 1;
+        versions[String(name)] = ((versions[String(name)] as number) || 0) + 1;
         saveJsonSafe(NAME_VERSIONS_FILE, versions);
         console.log('Incremented name version for deleted file', name, versions[name]);
       } catch (e) {
-        console.warn('Failed to increment name version on delete:', e.message);
+        console.warn('Failed to increment name version on delete:', (e as Error).message);
       }
     } catch (e) {
-      console.warn('Failed to cleanup keymap for deleted file:', e.message);
+      console.warn('Failed to cleanup keymap for deleted file:', (e as Error).message);
     }
 
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
-// Upload endpoint (base64 JSON)
-app.post('/api/upload-base64', (req, res) => {
+app.post('/api/upload-base64', (req: Request, res: Response) => {
   const { filename, data } = req.body || {};
-  // allow empty data (''), but reject missing filename or missing data field
   if (!filename) return res.status(400).json({ error: 'missing filename' });
   if (typeof data === 'undefined' || data === null) return res.status(400).json({ error: 'missing data' });
   const buf = Buffer.from(data || '', 'base64');
   const targetPath = path.join(FILE_DIR, filename);
-  // ensure directory exists
   try {
     fs.mkdirSync(FILE_DIR, { recursive: true });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: (e as Error).message });
   }
   fs.writeFile(targetPath, buf, err => {
     if (err) return res.status(500).json({ error: err.message });
@@ -416,22 +391,18 @@ app.post('/api/upload-base64', (req, res) => {
   });
 });
 
-// Multipart/form-data upload endpoint compatible with Antd Upload
-app.post('/api/files/upload', upload.single('file'), (req, res) => {
+app.post('/api/files/upload', upload.single('file'), (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
-    // file saved by multer to FILE_DIR
     const savedName = req.file.filename;
     return res.json({ ok: true, name: savedName });
   } catch (e) {
-    console.error('Upload error:', e.message);
-    return res.status(500).json({ error: e.message });
+    console.error('Upload error:', (e as Error).message);
+    return res.status(500).json({ error: (e as Error).message });
   }
 });
 
-// Chunked upload endpoint: accepts a single chunk (multipart form field 'chunk')
-// Expects form fields: filename, index (0-based), totalChunks
-app.post('/api/files/upload-chunk', uploadMemory.single('chunk'), (req, res) => {
+app.post('/api/files/upload-chunk', uploadMemory.single('chunk'), (req: Request, res: Response) => {
   try {
     const { filename, index, totalChunks } = req.body || {};
     if (!filename) return res.status(400).json({ error: 'missing filename' });
@@ -442,10 +413,8 @@ app.post('/api/files/upload-chunk', uploadMemory.single('chunk'), (req, res) => 
     let safeName = path.basename(filename);
     let destPath = path.join(FILE_DIR, safeName);
 
-    // ensure directory exists
-    try { fs.mkdirSync(FILE_DIR, { recursive: true }); } catch (e) {}
+    try { fs.mkdirSync(FILE_DIR, { recursive: true }); } catch (e) { /* ignore */ }
 
-    // If this is the first chunk (index === 0) and file exists, auto-rename
     if (idx === 0) {
       if (fs.existsSync(destPath)) {
         safeName = getUniqueFilename(FILE_DIR, safeName);
@@ -457,61 +426,107 @@ app.post('/api/files/upload-chunk', uploadMemory.single('chunk'), (req, res) => 
 
     if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'missing chunk' });
 
-    // Append the chunk buffer to the destination file
     try {
       fs.appendFileSync(destPath, req.file.buffer);
     } catch (e) {
-      console.error('Failed to append chunk:', e.message);
-      return res.status(500).json({ error: e.message });
+      console.error('Failed to append chunk:', (e as Error).message);
+      return res.status(500).json({ error: (e as Error).message });
     }
 
-    // If client provided total and this is the last chunk, return completed response
     if (total !== null && idx === total - 1) {
       return res.json({ ok: true, name: safeName, completed: true });
     }
 
-    // Otherwise acknowledge receipt of chunk
     return res.json({ ok: true, name: safeName, index: idx });
   } catch (e) {
-    console.error('Chunk upload error:', e.message);
-    return res.status(500).json({ error: e.message });
+    console.error('Chunk upload error:', (e as Error).message);
+    return res.status(500).json({ error: (e as Error).message });
   }
 });
 
-// Cancel a chunked upload and remove partial file
-app.post('/api/files/upload-chunk/cancel', (req, res) => {
+app.post('/api/files/upload-chunk/cancel', (req: Request, res: Response) => {
   try {
     const filename = req.body && req.body.filename || req.query && req.query.filename;
     if (!filename) return res.status(400).json({ error: 'missing filename' });
-    const safeName = path.basename(filename);
+    const safeName = path.basename(filename as string);
     const destPath = path.join(FILE_DIR, safeName);
     if (fs.existsSync(destPath)) {
-      try { fs.unlinkSync(destPath); } catch (e) { console.warn('Failed to remove partial file:', e.message); }
+      try { fs.unlinkSync(destPath); } catch (e) { console.warn('Failed to remove partial file:', (e as Error).message); }
     }
     return res.json({ ok: true });
   } catch (e) {
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: (e as Error).message });
   }
 });
 
-// OnlyOffice webhook (save) placeholder
-app.post('/onlyoffice/webhook', (req, res) => {
+// OnlyOffice forcesave on editor exit — ensures webhook fires and timestamp is recorded
+app.post('/api/forcesave-doc/:name', (req: Request, res: Response) => {
+  try {
+    const name = path.basename(String(req.params.name || ''));
+
+    // Record edit timestamp directly — guaranteed to persist
+    try {
+      const editTimes = loadJsonSafe(LAST_EDITED_FILE) as Record<string, string>;
+      editTimes[name] = new Date().toISOString();
+      saveJsonSafe(LAST_EDITED_FILE, editTimes);
+      console.log(`Recorded edit timestamp for '${name}' at ${editTimes[name]}`);
+    } catch (e) {
+      console.warn('Failed to record edit timestamp:', (e as Error).message);
+    }
+
+    // Best-effort: also trigger OnlyOffice forcesave to ensure webhook fires
+    const keyMap = loadJsonSafe(KEYMAP_FILE) as Record<string, string>;
+    const docKey = keyMap[name];
+    if (!docKey) {
+      return res.json({ ok: true, reason: 'no key for file, timestamp recorded' });
+    }
+
+    const cmdUrl = `${DOC_SERVER_URL}/coauthoring/CommandService.ashx`;
+    const payload = {
+      c: 'forcesave',
+      key: docKey,
+      userdata: JSON.stringify({ fileName: name, action: 'save-on-exit' })
+    };
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (DOC_SERVER_JWT_SECRET) {
+      const tokenPayload = { payload, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 300 };
+      const token = jwt.sign(tokenPayload, DOC_SERVER_JWT_SECRET);
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    console.log(`Forcesaving document '${name}' (key: ${docKey}) via ${cmdUrl}`);
+
+    axios.post(cmdUrl, payload, { headers, timeout: 15000 })
+      .then(() => console.log(`Forcesave command sent for '${name}'`))
+      .catch(err => console.warn(`Forcesave command failed for '${name}':`, err.message));
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.warn('Forcesave error:', (e as Error).message);
+    res.json({ ok: false, reason: (e as Error).message });
+  }
+});
+
+app.post('/onlyoffice/webhook', (req: Request, res: Response) => {
   try {
     const { key, status, url } = req.body || {};
-    
+
     console.log('Received webhook:', { key, status, url });
-    
+
     if (status === 2 && url) {
-      // Document Server has saved the document, download and save it
       const fileNameFromKeymap = (function() {
         try {
-          const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+          const keyMapFile = path.join(META_DIR, 'keymap.json');
           if (fs.existsSync(keyMapFile)) {
             const map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}');
             if (map && map[key]) return map[key];
           }
         } catch (e) {
-          console.warn('Failed to read keymap.json:', e.message);
+          console.warn('Failed to read keymap.json:', (e as Error).message);
         }
         return null;
       })();
@@ -520,102 +535,87 @@ app.post('/onlyoffice/webhook', (req, res) => {
       const filePath = path.join(FILE_DIR, fileName);
 
       console.log(`Downloading saved document from ${url} to ${filePath}`);
-      
-      // Check if URL is local file (starts with file:// or /)
+
       if (url.startsWith('file://') || url.startsWith('/')) {
-        // Handle local file
         const localPath = url.startsWith('file://') ? url.substring(7) : url;
         console.log(`Reading local file from ${localPath}`);
-        
+
         try {
           const fileData = fs.readFileSync(localPath);
           fs.writeFileSync(filePath, fileData);
           console.log(`Document saved successfully to ${filePath}`);
-          
-          // increment name version so future downloads use new v param
+
+          // Record edit timestamp
+          try {
+            const editTimes = loadJsonSafe(LAST_EDITED_FILE);
+            editTimes[fileName] = new Date().toISOString();
+            saveJsonSafe(LAST_EDITED_FILE, editTimes);
+          } catch (e) { /* ignore */ }
+
           try {
             const versions = loadJsonSafe(NAME_VERSIONS_FILE);
-            versions[fileName] = (versions[fileName] || 0) + 1;
+            versions[fileName] = (versions[fileName] as number || 0) + 1;
             saveJsonSafe(NAME_VERSIONS_FILE, versions);
             console.log('Incremented name version after webhook save (local):', fileName, versions[fileName]);
-          } catch (e) { console.warn('Failed to increment name version after local save:', e.message); }
+          } catch (e) { console.warn('Failed to increment name version after local save:', (e as Error).message); }
 
-          res.json({
-            error: 0,
-            message: 'Document saved successfully'
-          });
+          res.json({ error: 0, message: 'Document saved successfully' });
         } catch (fileError) {
-          console.error('Error reading local file:', fileError.message);
-          res.status(500).json({
-            error: 1,
-            message: `Failed to read local file: ${fileError.message}`
-          });
+          console.error('Error reading local file:', (fileError as Error).message);
+          res.status(500).json({ error: 1, message: `Failed to read local file: ${(fileError as Error).message}` });
         }
       } else {
-        // Download the file from URL
         console.log(`Downloading from URL: ${url}`);
-        
-        // Add timeout and retry logic
+
         const axiosConfig = {
-          responseType: 'arraybuffer',
+          responseType: 'arraybuffer' as const,
           timeout: 30000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           }
         };
-        
+
         axios.get(url, axiosConfig)
           .then(response => {
-            // Save the file
             fs.writeFileSync(filePath, response.data);
             console.log(`Document saved successfully to ${filePath}, size: ${response.data.length} bytes`);
 
-            // increment name version so future downloads use new v param
+            // Record edit timestamp
+            try {
+              const editTimes = loadJsonSafe(LAST_EDITED_FILE);
+              editTimes[fileName] = new Date().toISOString();
+              saveJsonSafe(LAST_EDITED_FILE, editTimes);
+            } catch (e) { /* ignore */ }
+
             try {
               const versions = loadJsonSafe(NAME_VERSIONS_FILE);
-              versions[fileName] = (versions[fileName] || 0) + 1;
+              versions[fileName] = (versions[fileName] as number || 0) + 1;
               saveJsonSafe(NAME_VERSIONS_FILE, versions);
               console.log('Incremented name version after webhook save:', fileName, versions[fileName]);
-            } catch (e) { console.warn('Failed to increment name version after save:', e.message); }
+            } catch (e) { console.warn('Failed to increment name version after save:', (e as Error).message); }
 
-            // Send success response
-            res.json({
-              error: 0,
-              message: 'Document saved successfully'
-            });
+            res.json({ error: 0, message: 'Document saved successfully' });
           })
           .catch(error => {
             console.error('Error downloading document:', error.message);
             console.error('Error response:', error.response ? error.response.status : 'No response');
-            res.status(500).json({
-              error: 1,
-              message: `Failed to download document: ${error.message}`
-            });
+            res.status(500).json({ error: 1, message: `Failed to download document: ${error.message}` });
           });
       }
     } else {
-      // Document not saved yet or invalid status
       console.log(`Document not ready for save. Status: ${status}`);
-      res.json({
-        error: 0,
-        message: 'Document not ready for save'
-      });
+      res.json({ error: 0, message: 'Document not ready for save' });
     }
   } catch (error) {
     console.error('Webhook error:', error);
-    res.status(500).json({
-      error: 1,
-      message: 'Internal server error'
-    });
+    res.status(500).json({ error: 1, message: 'Internal server error' });
   }
 });
 
-// Admin login endpoint with JWT cookie
-// POST /api/login { password }
-app.post('/api/login', (req, res) => {
+app.post('/api/login', (req: Request, res: Response) => {
   const { password } = req.body || {};
   const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
-  
+
   if (!password) return res.status(400).json({ error: 'missing password' });
   if (password === adminPass) {
     const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
@@ -630,17 +630,15 @@ app.post('/api/login', (req, res) => {
   return res.status(401).json({ error: 'invalid' });
 });
 
-// Logout endpoint - clear auth cookie
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', (_req: Request, res: Response) => {
   res.clearCookie(COOKIE_NAME);
   res.json({ ok: true });
 });
 
-// Verify auth status
-app.get('/api/auth', (req, res) => {
+app.get('/api/auth', (req: Request, res: Response) => {
   const token = req.cookies[COOKIE_NAME];
   if (!token) return res.json({ authenticated: false });
-  
+
   try {
     jwt.verify(token, JWT_SECRET);
     res.json({ authenticated: true, role: 'admin' });
@@ -650,73 +648,90 @@ app.get('/api/auth', (req, res) => {
   }
 });
 
-// Return a small HTML that embeds ONLYOFFICE editor with config to open the file
-app.get('/editor/:name', (req, res) => {
-  const name = req.params.name;
-  const externalHost = `${req.protocol}://${req.get('host')}`;
+interface EditorConfigResult {
+  configObj: {
+    documentType: string;
+    document: {
+      title: string;
+      url: string;
+      key: string;
+      fileType?: string;
+      permissions?: Record<string, boolean>;
+    };
+    editorConfig: {
+      callbackUrl: string;
+      mode: string;
+    };
+    token?: string;
+  };
+  docApiUrl: string;
+  token: string;
+  browserUrl: string;
+  callbackUrl: string;
+}
+
+function buildEditorConfig(name: string, mode: string | undefined, externalHost: string): EditorConfigResult {
   const fileUrl = `${externalHost}/files/${encodeURIComponent(name)}`;
   const docServer = DOC_SERVER_URL;
-  
-  // Compute internal host/urls for Document Server to download/save files
+
   let downloadUrl = fileUrl;
   let callbackUrl = `${externalHost}/onlyoffice/webhook`;
   let browserUrl = externalHost;
-  
+
   if (DOC_SERVER_INTERNAL_HOST) {
-    // DOC_SERVER_INTERNAL_HOST may include protocol and port, e.g. http://host.docker.internal:4000 or http://backend:4000
     const hostWithProto = DOC_SERVER_INTERNAL_HOST.startsWith('http') ? DOC_SERVER_INTERNAL_HOST : `http://${DOC_SERVER_INTERNAL_HOST}`;
-    // Ensure no trailing slash
     const hostNoSlash = hostWithProto.replace(/\/$/, '');
     downloadUrl = `${hostNoSlash}/files/${encodeURIComponent(name)}`;
     callbackUrl = `${hostNoSlash}/onlyoffice/webhook`;
-    // browserUrl remains external; docserver should use internal host for server-side operations
-  } else {
-    // default to using the external host (what the browser sees)
-    downloadUrl = fileUrl;
-    callbackUrl = `${externalHost}/onlyoffice/webhook`;
   }
 
-  // Append version query param from nameVersions to force fresh fetch when file changed
   try {
     const nameVersions = loadJsonSafe(NAME_VERSIONS_FILE) || {};
-    const ver = nameVersions[name] || 0;
+    const ver = nameVersions[name] as number || 0;
     const sep = downloadUrl.includes('?') ? '&' : '?';
     downloadUrl = `${downloadUrl}${sep}v=${ver}`;
-    // also reflect in callbackUrl if desired (not strictly necessary)
-    callbackUrl = `${callbackUrl}`;
   } catch (e) {
-    console.warn('Failed to append version to downloadUrl:', e.message);
+    console.warn('Failed to append version to downloadUrl:', (e as Error).message);
   }
 
-  console.log('Editor URLs:', { externalHost, downloadUrl, callbackUrl, browserUrl, docServer });
-
-  // Build editor config as an object so we can sign it when JWT secret is provided
-  // Determine documentType from the file extension so slides open as slides, sheets as cells, etc.
   let docType = 'word';
   try {
     const ext = path.extname(name || '').toLowerCase();
     if (ext === '.ppt' || ext === '.pptx' || ext === '.odp') docType = 'slide';
     else if (ext === '.xls' || ext === '.xlsx' || ext === '.ods' || ext === '.csv') docType = 'cell';
-    else if (ext === '.pdf') docType = 'word'; // PDF will be opened in viewer mode within Document Server
+    else if (ext === '.pdf') docType = 'word';
     else if (ext === '.doc' || ext === '.docx' || ext === '.odt' || ext === '.rtf') docType = 'word';
     else if (!ext) {
-      // fallback: try to guess by mime type
       const mt = mime.getType(name) || '';
       if (mt.includes('sheet') || mt.includes('spreadsheet')) docType = 'cell';
       else if (mt.includes('presentation')) docType = 'slide';
       else if (mt.includes('word') || mt.includes('pdf') || mt.includes('text')) docType = 'word';
     }
   } catch (e) {
-    console.warn('Failed to determine documentType, using default word:', e.message);
+    console.warn('Failed to determine documentType, using default word:', (e as Error).message);
   }
-  
-  const editorMode = req.query.mode === 'view' ? 'view' : 'edit';
-  const configObj = {
+
+  const editorMode = mode === 'view' ? 'view' : 'edit';
+  const configObj: {
+    documentType: string;
+    document: {
+      title: string;
+      url: string;
+      key: string;
+      fileType?: string;
+      permissions?: Record<string, boolean>;
+    };
+    editorConfig: {
+      callbackUrl: string;
+      mode: string;
+    };
+    token?: string;
+  } = {
     documentType: docType,
     document: {
       title: name,
       url: downloadUrl,
-      key: '' // will be set below
+      key: ''
     },
     editorConfig: {
       callbackUrl: callbackUrl,
@@ -724,44 +739,37 @@ app.get('/editor/:name', (req, res) => {
     }
   };
 
-  // Document Server v7.1+ requires document.key in the config for auth.
-  // Use a key that includes a per-filename version so recreating the same filename yields a new key.
   try {
-    // load name versions
-    let nameVersions = {};
+    let nameVersions: Record<string, unknown> = {};
     try { nameVersions = loadJsonSafe(NAME_VERSIONS_FILE); } catch (e) { nameVersions = {}; }
-    const ver = nameVersions[name] || 0;
+    const ver = (nameVersions[String(name)] as number) || 0;
     const fileUrlForKey = `${fileUrl}?v=${ver}`;
     const documentKey = crypto.createHash('sha256').update(fileUrlForKey).digest('hex');
-    configObj.document.key = documentKey; // place key in document object
+    configObj.document.key = documentKey;
 
-    // Persist mapping from documentKey -> original filename so webhook can restore the proper filename
     try {
-      const keyMapDir = path.join(__dirname, 'data');
+      const keyMapDir = path.join(ROOT_DIR, 'server', 'data');
       const keyMapFile = path.join(keyMapDir, 'keymap.json');
       fs.mkdirSync(keyMapDir, { recursive: true });
-      let map = {};
+      let map: Record<string, string> = {};
       if (fs.existsSync(keyMapFile)) {
         try { map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}'); } catch (e) { map = {}; }
       }
       map[documentKey] = name;
-      // also store version for debugging
-      try { map[`_${documentKey}_v`] = ver; } catch (e) {}
+      try { map[`_${documentKey}_v`] = String(ver); } catch (e) { /* ignore */ }
       fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2));
     } catch (e) {
-      console.warn('Failed to persist document key mapping:', e.message);
+      console.warn('Failed to persist document key mapping:', (e as Error).message);
     }
   } catch (e) {
-    console.error('failed to generate document key', e.message);
+    console.error('failed to generate document key', (e as Error).message);
   }
-  
-  // Set document.fileType based on extension (no leading dot)
+
   try {
     const ext = path.extname(name || '').toLowerCase();
     let fileType = '';
     if (ext) fileType = ext.startsWith('.') ? ext.substring(1) : ext;
     else {
-      // fallback to mime
       const mt = mime.getType(name) || '';
       if (mt.includes('presentation')) fileType = 'pptx';
       else if (mt.includes('spreadsheet')) fileType = 'xlsx';
@@ -769,164 +777,95 @@ app.get('/editor/:name', (req, res) => {
     }
     if (fileType) configObj.document.fileType = fileType;
   } catch (e) {
-    console.warn('Failed to set document.fileType:', e.message);
+    console.warn('Failed to set document.fileType:', (e as Error).message);
   }
 
   let token = '';
   if (DOC_SERVER_JWT_SECRET) {
     try {
-      // ONLYOFFICE官方文档要求的JWT payload格式
       const jwtPayload = {
-        // include a minimal user identity so Document Server has context
-        user: {
-          id: 'admin',
-          name: 'Administrator',
-          roles: ['admin']
-        },
+        user: { id: 'admin', name: 'Administrator', roles: ['admin'] },
         document: {
           key: configObj.document.key,
           url: configObj.document.url,
           title: configObj.document.title || name,
           fileType: configObj.document.fileType || undefined,
           permissions: {
-            comment: true,
-            copy: true,
-            download: true,
-            edit: true,
-            fillForms: true,
-            modifyContentControl: true,
-            modifyFilter: true,
-            print: true,
-            review: true
+            comment: true, copy: true, download: true, edit: true,
+            fillForms: true, modifyContentControl: true, modifyFilter: true,
+            print: true, review: true
           }
         },
-        editorConfig: {
-          callbackUrl: callbackUrl,
-          mode: editorMode
-        }
+        editorConfig: { callbackUrl: callbackUrl, mode: editorMode }
       };
-      
-      // Ensure the injected configObj contains the same permissions so OnlyOffice won't report modified permissions
       try {
         configObj.document.permissions = jwtPayload.document.permissions;
-      } catch (e) {
-        console.warn('Failed to set document permissions on configObj:', e.message);
-      }
-      
-      console.log('JWT Payload:', JSON.stringify(jwtPayload, null, 2));
-      
-      // 生成JWT token — 对 Document Server 使用的直接 payload 进行签名
+      } catch (e) { /* ignore */ }
       token = jwt.sign(jwtPayload, DOC_SERVER_JWT_SECRET, { algorithm: 'HS256', expiresIn: '1h' });
-      console.log('Generated JWT Token:', token);
-    } catch (e) {
-      console.error('failed to sign doc server token', e.message);
-      token = '';
-    }
-  }
-
-  // 把 token 放入 configObj，确保前端能直接从 docConfig.token 读取到正确的 JWT
-  try {
-    if (token) {
-      // Strip whitespace/newlines just in case
-      token = String(token).replace(/\s+/g, '');
-      // Verify token can be decoded with secret
-      try {
-        const decoded = jwt.verify(token, DOC_SERVER_JWT_SECRET);
-        console.log('JWT verified successfully, payload:', JSON.stringify(decoded));
-      } catch (verifyErr) {
-        console.error('JWT verification failed:', verifyErr.message);
+      if (token) {
+        token = String(token).replace(/\s+/g, '');
+        configObj.token = token;
       }
-      configObj.token = token;
+    } catch (e) {
+      console.error('failed to sign doc server token', (e as Error).message);
     }
-  } catch (e) {
-    console.warn('Failed to attach token to configObj:', e.message);
   }
 
-  const html = `<!doctype html>
-  <html>
-  <head><meta charset="utf-8"><title>OnlyOffice Editor - ${name}</title>
-  <style>
-    body,html{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-    .editor-header{height:48px;background:#1a1a2e;color:#fff;display:flex;align-items:center;padding:0 16px;gap:12px}
-    .editor-back{color:#fff;text-decoration:none;font-size:14px;display:flex;align-items:center;gap:6px}
-    .editor-back:hover{opacity:.8}
-    .editor-title{font-size:14px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.9}
-    .editor-mode{font-size:12px;padding:4px 10px;background:rgba(255,255,255,.12);border-radius:4px;text-transform:capitalize}
-    #editor{height:calc(100vh - 48px)}
-  </style>
-  </head>
-  <body>
-  <div class="editor-header">
-    <a href="/" class="editor-back">&#8592; ${editorMode === 'view' ? '返回' : '返回文件列表'}</a>
-    <span class="editor-title">${name}</span>
-    <span class="editor-mode">${editorMode}</span>
-  </div>
-  <div id="editor"></div>
-  <script src="${docServer}/web-apps/apps/api/documents/api.js"></script>
+  return {
+    configObj,
+    docApiUrl: `${docServer}/web-apps/apps/api/documents/api.js`,
+    token,
+    browserUrl,
+    callbackUrl
+  };
+}
 
-  <script>
-    // config object injected from server (includes token)
-    var docConfig = ${JSON.stringify(configObj)};
-    // expose both browserUrl (used by client) and server-side downloadUrl when needed
-    docConfig.browserUrl = ${JSON.stringify(browserUrl)};
-    docConfig.callbackUrl = ${JSON.stringify(callbackUrl)};
-    docConfig.document.key = ${JSON.stringify(configObj.document.key)};
-    // Expose token explicitly as well
-    window.__DOC_CONFIG__ = docConfig;
-    window.__DOC_TOKEN__ = ${JSON.stringify(token)};
-    // Initialize OnlyOffice DocEditor
-    if (typeof DocsAPI !== 'undefined' && DocsAPI.DocEditor) {
-      new DocsAPI.DocEditor('editor', docConfig);
-    } else {
-      document.getElementById('editor').innerHTML = '<p style="padding:20px;color:red">Failed to load OnlyOffice Document Server API. Please check DOC_SERVER_URL configuration.</p>';
-    }
-  </script>
-  </body>
-  </html>`;
-
-  res.send(html);
+app.get('/api/editor-config/:name', (req: Request, res: Response) => {
+  const name = path.basename(String(req.params.name));
+  const externalHost = `${req.protocol}://${req.get('host')}`;
+  const mode = req.query.mode;
+  const result = buildEditorConfig(name, mode as string, externalHost);
+  res.json({
+    docConfig: result.configObj,
+    docApiUrl: result.docApiUrl,
+    token: result.token,
+    browserUrl: result.browserUrl,
+    callbackUrl: result.callbackUrl
+  });
 });
 
-// Create new file endpoint
-app.post('/api/files/create', async (req, res) => {
+app.post('/api/files/create', async (req: Request, res: Response) => {
   try {
     const { name, format } = req.body || {};
     if (!name) return res.status(400).json({ error: 'missing name' });
 
-    // normalize filename
     const safeName = path.basename(name);
     const ext = path.extname(safeName) || (format ? `.${format.replace(/^[.]/, '')}` : '.docx');
     const finalName = safeName.toLowerCase().endsWith(ext.toLowerCase()) ? safeName : `${safeName}${ext}`;
 
-    // ensure directory exists
     fs.mkdirSync(FILE_DIR, { recursive: true });
 
     let filePath = path.join(FILE_DIR, finalName);
 
-    // If file exists, auto-rename with (1), (2), etc.
     if (fs.existsSync(filePath)) {
       const uniqueName = getUniqueFilename(FILE_DIR, finalName);
       filePath = path.join(FILE_DIR, uniqueName);
       console.log('File exists, auto-renamed:', finalName, '->', uniqueName);
     }
 
-    // Try to create file from local template files located in backend/templates/
-    const templatesDir = path.join(__dirname, 'templates');
+    const templatesDir = path.join(ROOT_DIR, 'server', 'templates');
     const templateFile = path.join(templatesDir, `blank${ext}`);
 
-    // Remove any stale keymap entries that reference this filename so recreated files
-    // do not pick up older saved content from Document Server keyed files.
     try {
-      const keyMapFile = path.join(__dirname, 'data', 'keymap.json');
+      const keyMapFile = path.join(META_DIR, 'keymap.json');
       if (fs.existsSync(keyMapFile)) {
-        let map = {};
+        let map: Record<string, string> = {};
         try { map = JSON.parse(fs.readFileSync(keyMapFile, 'utf8') || '{}'); } catch (e) { map = {}; }
         let changed = false;
         for (const k of Object.keys(map)) {
           if (map[k] === finalName) {
             delete map[k];
             changed = true;
-            // also remove any files saved under the key
             const candidates = [
               path.join(FILE_DIR, k),
               path.join(FILE_DIR, `${k}.docx`),
@@ -942,7 +881,7 @@ app.post('/api/files/create', async (req, res) => {
         if (changed) fs.writeFileSync(keyMapFile, JSON.stringify(map, null, 2));
       }
     } catch (e) {
-      console.warn('Failed to clean keymap during create:', e.message);
+      console.warn('Failed to clean keymap during create:', (e as Error).message);
     }
 
     try {
@@ -951,54 +890,48 @@ app.post('/api/files/create', async (req, res) => {
           const st = fs.statSync(templateFile);
           console.log('Template file exists at', templateFile, 'size', st.size);
 
-          // Directly copy template to destination without validating header/magic bytes
           try {
             fs.copyFileSync(templateFile, filePath);
             console.log('Copied template to', filePath);
             return res.json({ ok: true, name: finalName });
           } catch (e) {
-            console.warn('Failed to copy template file:', e.message);
+            console.warn('Failed to copy template file:', (e as Error).message);
           }
         } catch (e) {
-          console.warn('Failed to inspect template file:', e.message);
+          console.warn('Failed to inspect template file:', (e as Error).message);
         }
       } else {
         console.log('No local template file found at', templateFile);
       }
 
-      // If requested ext is PDF, generate a minimal valid PDF (blank)
       if (ext.toLowerCase() === '.pdf') {
         const pdfMinimal = Buffer.from('%PDF-1.4\n%âãÏÓ\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 44 >>\nstream\nBT /F1 24 Tf 72 100 Td (Blank PDF) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000010 00000 n \n0000000060 00000 n \n0000000120 00000 n \n0000000200 00000 n \ntrailer\n<< /Root 1 0 R /Size 5 >>\nstartxref\n300\n%%EOF');
         fs.writeFileSync(filePath, pdfMinimal);
         return res.json({ ok: true, name: finalName });
       }
 
-      // No valid local template and not PDF -> return error instead of creating empty file
       console.error('No valid local template available for', ext, 'cannot create', finalName);
       return res.status(500).json({ error: 'no_valid_local_template', detail: `No valid local template for ${ext}. Place a template at ${templateFile}` });
     } catch (e) {
-      return res.status(500).json({ error: e.message });
+      return res.status(500).json({ error: (e as Error).message });
     }
-   } catch (e) {
-     return res.status(500).json({ error: e.message });
-   }
+  } catch (e) {
+    return res.status(500).json({ error: (e as Error).message });
+  }
 });
 
-// Ensure templates directory exists (do not fail startup if templates missing)
 try {
-  const templatesDir = path.join(__dirname, 'templates');
+  const templatesDir = path.join(ROOT_DIR, 'server', 'templates');
   fs.mkdirSync(templatesDir, { recursive: true });
 } catch (e) {
-  console.warn('Failed to ensure templates directory:', e.message);
+  console.warn('Failed to ensure templates directory:', (e as Error).message);
 }
 
-// Serve static frontend build (SPA fallback to index.html)
-const BUILD_DIR = path.join(__dirname, '..', 'web', 'build');
+const BUILD_DIR = path.join(ROOT_DIR, 'dist', 'web', 'build');
 if (fs.existsSync(BUILD_DIR)) {
   app.use(express.static(BUILD_DIR));
-  app.get('*', (req, res) => {
-    // API routes should not be intercepted
-    if (req.path.startsWith('/api/') || req.path.startsWith('/files/') || req.path.startsWith('/onlyoffice/') || req.path.startsWith('/editor/')) {
+  app.get('*', (req: Request, res: Response) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/files/') || req.path.startsWith('/onlyoffice/')) {
       return res.status(404).send('Not found');
     }
     res.sendFile(path.join(BUILD_DIR, 'index.html'));
