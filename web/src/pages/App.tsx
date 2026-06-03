@@ -36,6 +36,7 @@ function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: () => 
             value={password}
             onChange={e => setPassword(e.target.value)}
             placeholder={t('login.password')}
+            aria-label={t('login.password')}
             autoFocus
           />
           {error && <div className="error">{error}</div>}
@@ -164,7 +165,7 @@ export default function App(): React.ReactElement {
     <div className="app-shell">
       <nav className="app-topbar">
         {isEditorPage ? (
-          <button className="glass-icon-btn back-btn" onClick={handleBackClick}>
+          <button className="glass-icon-btn back-btn" onClick={handleBackClick} aria-label={t('Back')}>
             <ArrowLeftOutlined /> <span className="back-label">{t('Back')}</span>
           </button>
         ) : (
@@ -175,18 +176,18 @@ export default function App(): React.ReactElement {
         <div className="topbar-controls">
           {!isEditorPage && (
             <Dropdown menu={{ items: languageMenuItems }} placement="bottomRight">
-              <button className="glass-icon-btn" title={t('Language')}>
+              <button className="glass-icon-btn" title={t('Language')} aria-label={t('Language')}>
                 <GlobalOutlined />
               </button>
             </Dropdown>
           )}
           <Dropdown menu={{ items: themeMenuItems }} placement="bottomRight">
-            <button className="glass-icon-btn" title={t('Theme')}>
+            <button className="glass-icon-btn" title={t('Theme')} aria-label={t('Theme')}>
               {themeIcon}
             </button>
           </Dropdown>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" open={menuOpen} onOpenChange={setMenuOpen}>
-            <button className={`glass-icon-btn${userMode === 'admin' ? ' logged-in' : ''}`} title={t('Account')}>
+            <button className={`glass-icon-btn${userMode === 'admin' ? ' logged-in' : ''}`} title={t('Account')} aria-label={t('Account')}>
               <UserOutlined />
             </button>
           </Dropdown>
@@ -199,7 +200,7 @@ export default function App(): React.ReactElement {
 
       {!isEditorPage && (
         <footer className="app-footer">
-          {t('OnlyOffice File Panel')} v{pkg.version} &copy;2026 Created by TonyBlu
+          {t('OnlyOffice File Panel')} v{pkg.version} &copy;{new Date().getFullYear()} Created by TonyBlu
         </footer>
       )}
 

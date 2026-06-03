@@ -14,7 +14,24 @@ const COOKIE_NAME = 'auth_token';
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const app = express();
-app.use(cors({ credentials: true, origin: true }));
+
+// CORS: restrict allowed origins via CORS_ORIGIN env var (comma-separated).
+// Defaults to permissive in dev, locked-down in production.
+const ALLOWED_ORIGINS = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+  : [];
+
+app.use(cors({
+  credentials: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (same-origin, curl, mobile apps, server-to-server)
+    if (!origin) return callback(null, true);
+    // Dev mode: no origins configured → allow all
+    if (ALLOWED_ORIGINS.length === 0) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  }
+}));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -158,6 +175,20 @@ const checkAuth = (req: AuthRequest, res: Response, next: NextFunction) => {
   next();
 };
 
+/** Middleware that rejects unauthenticated / non-admin requests with 401. */
+const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const token = req.cookies[COOKIE_NAME];
+  if (!token) return res.status(401).json({ error: 'authentication required' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { role: string };
+    if (decoded.role !== 'admin') return res.status(403).json({ error: 'admin access required' });
+    req.user = decoded;
+  } catch {
+    return res.status(401).json({ error: 'invalid or expired token' });
+  }
+  next();
+};
+
 interface FileItem {
   name: string;
   mtime: string | null;
@@ -254,7 +285,7 @@ app.get('/files/:name', (req: Request, res: Response) => {
   fs.createReadStream(filePath).pipe(res);
 });
 
-app.put('/api/files/:name/rename', (req: Request, res: Response) => {
+app.put('/api/files/:name/rename', requireAdmin, (req: Request, res: Response) => {
   try {
     const name = path.basename(String(req.params.name));
     const { newName } = req.body || {};
@@ -293,7 +324,7 @@ app.put('/api/files/:name/rename', (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/files/:name/duplicate', (req: Request, res: Response) => {
+app.post('/api/files/:name/duplicate', requireAdmin, (req: Request, res: Response) => {
   try {
     const name = path.basename(String(req.params.name));
     const srcPath = path.join(FILE_DIR, name);
@@ -330,7 +361,7 @@ app.post('/api/files/:name/duplicate', (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/files/:name/download', (req: Request, res: Response) => {
+app.get('/api/files/:name/download', requireAdmin, (req: Request, res: Response) => {
   try {
     const name = path.basename(String(req.params.name));
     const filePath = path.join(FILE_DIR, name);
@@ -346,7 +377,7 @@ app.get('/api/files/:name/download', (req: Request, res: Response) => {
   }
 });
 
-app.delete('/api/files/:name', (req: Request, res: Response) => {
+app.delete('/api/files/:name', requireAdmin, (req: Request, res: Response) => {
   const name = path.basename(String(req.params.name));
   const filePath = path.join(FILE_DIR, name);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'not found' });
@@ -405,12 +436,14 @@ app.delete('/api/files/:name', (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/upload-base64', (req: Request, res: Response) => {
+app.post('/api/upload-base64', requireAdmin, (req: Request, res: Response) => {
   const { filename, data } = req.body || {};
   if (!filename) return res.status(400).json({ error: 'missing filename' });
   if (typeof data === 'undefined' || data === null) return res.status(400).json({ error: 'missing data' });
   const buf = Buffer.from(data || '', 'base64');
-  const targetPath = path.join(FILE_DIR, filename);
+  // Sanitize filename to prevent path traversal
+  const safeFilename = path.basename(String(filename));
+  const targetPath = path.join(FILE_DIR, safeFilename);
   try {
     fs.mkdirSync(FILE_DIR, { recursive: true });
   } catch (e) {
@@ -418,11 +451,11 @@ app.post('/api/upload-base64', (req: Request, res: Response) => {
   }
   fs.writeFile(targetPath, buf, err => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true, name: filename });
+    res.json({ ok: true, name: safeFilename });
   });
 });
 
-app.post('/api/files/upload', upload.single('file'), (req: Request, res: Response) => {
+app.post('/api/files/upload', requireAdmin, upload.single('file'), (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
     const savedName = req.file.filename;
@@ -433,7 +466,7 @@ app.post('/api/files/upload', upload.single('file'), (req: Request, res: Respons
   }
 });
 
-app.post('/api/files/upload-chunk', uploadMemory.single('chunk'), (req: Request, res: Response) => {
+app.post('/api/files/upload-chunk', requireAdmin, uploadMemory.single('chunk'), (req: Request, res: Response) => {
   try {
     const { filename, index, totalChunks } = req.body || {};
     if (!filename) return res.status(400).json({ error: 'missing filename' });
@@ -475,7 +508,7 @@ app.post('/api/files/upload-chunk', uploadMemory.single('chunk'), (req: Request,
   }
 });
 
-app.post('/api/files/upload-chunk/cancel', (req: Request, res: Response) => {
+app.post('/api/files/upload-chunk/cancel', requireAdmin, (req: Request, res: Response) => {
   try {
     const filename = req.body && req.body.filename || req.query && req.query.filename;
     if (!filename) return res.status(400).json({ error: 'missing filename' });
@@ -519,49 +552,10 @@ app.post('/onlyoffice/webhook', (req: Request, res: Response) => {
 
       console.log(`Downloading saved document from ${url} to ${filePath}`);
 
-      if (url.startsWith('file://') || url.startsWith('/')) {
-        const localPath = url.startsWith('file://') ? url.substring(7) : url;
-        console.log(`Reading local file from ${localPath}`);
-
-        try {
-          const fileData = fs.readFileSync(localPath);
-
-          // Compare content hash against OnlyOffice's LAST save (not the file
-          // on disk).  OnlyOffice re-encodes documents on save, so byte-level
-          // comparison with the disk file always shows "different" even when the
-          // user made no edits.  By tracking the hash of what OnlyOffice last
-          // sent us, we can detect whether the content genuinely changed
-          // between two webhook calls.
-          const newHash = crypto.createHash('sha256').update(fileData).digest('hex');
-          const hashes = loadJsonSafe(CONTENT_HASHES_FILE);
-          const prevHash = hashes[fileName] as string | undefined;
-          const contentChanged = !prevHash || prevHash !== newHash;
-
-          // Always write the file (keeps disk copy in sync with OnlyOffice)
-          fs.writeFileSync(filePath, fileData);
-          hashes[fileName] = newHash;
-          saveJsonSafe(CONTENT_HASHES_FILE, hashes);
-
-          if (contentChanged) {
-            console.log(`Document saved to ${filePath} (content changed vs last webhook)`);
-            try {
-              const editTimes = loadJsonSafe(LAST_EDITED_FILE);
-              editTimes[fileName] = new Date().toISOString();
-              saveJsonSafe(LAST_EDITED_FILE, editTimes);
-            } catch (e) { /* ignore */ }
-          } else {
-            console.log(`Webhook for ${fileName}: content same as last save, skipping timestamp`);
-          }
-
-          // Do NOT increment nameVersions here — changing the version alters the document key,
-          // which causes OnlyOffice to show "version has changed" on next open and breaks editing.
-          // The document key should only change for external modifications (upload, create, delete, rename).
-
-          res.json({ error: 0, message: 'Document saved successfully' });
-        } catch (fileError) {
-          console.error('Error reading local file:', (fileError as Error).message);
-          res.status(500).json({ error: 1, message: `Failed to read local file: ${(fileError as Error).message}` });
-        }
+      if (url.startsWith('file://') || (url.startsWith('/') && !url.startsWith('//'))) {
+        console.warn('Rejected file:// or absolute-path URL in webhook:', url);
+        res.status(400).json({ error: 1, message: 'file:// and absolute-path URLs are not supported' });
+        return;
       } else {
         console.log(`Downloading from URL: ${url}`);
 
@@ -833,7 +827,7 @@ app.get('/api/editor-config/:name', (req: Request, res: Response) => {
   });
 });
 
-app.post('/api/files/create', async (req: Request, res: Response) => {
+app.post('/api/files/create', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { name, format } = req.body || {};
     if (!name) return res.status(400).json({ error: 'missing name' });
@@ -925,6 +919,10 @@ try {
 } catch (e) {
   console.warn('Failed to ensure templates directory:', (e as Error).message);
 }
+
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
 
 const BUILD_DIR = path.join(ROOT_DIR, 'dist', 'web', 'build');
 if (fs.existsSync(BUILD_DIR)) {

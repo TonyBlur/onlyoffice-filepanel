@@ -597,7 +597,7 @@ const HomePage: React.FC = () => {
   const handleDelete = async (fileName: string) => {
     try {
       setSelectedRowKeys([]);
-      await axios.delete(`/api/files/${fileName}`);
+      await axios.delete(`/api/files/${encodeURIComponent(fileName)}`);
       fetchFiles();
       messageApi.success(t('File deleted successfully'));
     } catch (error) {

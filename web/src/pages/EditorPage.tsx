@@ -176,7 +176,7 @@ const EditorPage = (): React.ReactElement => {
         docEditorRef.current = null;
       }
     };
-  }, [docConfig, docApiUrl, t]);
+  }, [docConfig, docApiUrl]);
 
   const initializeEditor = (cfg: EditorConfig) => {
     if (docEditorRef.current || !cfg) return;

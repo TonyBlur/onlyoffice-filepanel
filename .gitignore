@@ -11,6 +11,14 @@ dist
 # Docker
 docker-compose.override.yml
 
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Large binary assets
+commonChineseFonts.tar
+
 # IDEs
 .vscode/
 .idea/
