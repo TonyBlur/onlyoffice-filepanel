@@ -2,7 +2,7 @@ name: Build and Publish
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, "feat/**"]
     tags: ["v*"]
   pull_request:
     branches: [main, master]
@@ -40,7 +40,7 @@ jobs:
   # ── 2. Docker build & push ─────────────────────────────────────────────
   docker-build-push:
     needs: build-check
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -58,6 +58,22 @@ jobs:
         run: |
           GHCR_REPO=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "ghcr_repo=$GHCR_REPO" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare image list
+        id: images
+        env:
+          GHCR_REPO: ${{ steps.ghcr-repo.outputs.ghcr_repo }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          IMAGES="$GHCR_REPO"
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            IMAGES="$IMAGES"$'\n'"docker.io/${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+          fi
+          {
+            echo 'images<<EOF'
+            echo "$IMAGES"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -85,9 +101,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ steps.ghcr-repo.outputs.ghcr_repo }}
-            ${{ secrets.DOCKERHUB_USERNAME != '' && format('docker.io/{0}/{1}', secrets.DOCKERHUB_USERNAME, env.IMAGE_NAME) || '' }}
+          images: ${{ steps.images.outputs.images }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.version.outputs.version }},enable={{is_default_branch}}
@@ -159,7 +173,7 @@ jobs:
             echo 'commits<<EOF'
             echo "$COMMITS"
             echo 'EOF'
-          } >> "$GITHUB_OUTPUT
+          } >> "$GITHUB_OUTPUT"
           echo "Last tag: ${LAST_TAG:-none}"
           echo "Commits since last release:"
           echo "$COMMITS"
