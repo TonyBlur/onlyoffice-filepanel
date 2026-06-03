@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 18
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -62,6 +62,19 @@ jobs:
           GHCR_REPO=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "ghcr_repo=$GHCR_REPO" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare image list
+        id: images
+        run: |
+          IMAGES="${{ steps.repo.outputs.ghcr_repo }}"
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            IMAGES="$IMAGES"$'\n'"docker.io/${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+          fi
+          {
+            echo 'images<<IMAGES_EOF'
+            echo "$IMAGES"
+            echo 'IMAGES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
@@ -88,11 +101,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ steps.repo.outputs.ghcr_repo }}
+          images: ${{ steps.images.outputs.images }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.version.outputs.version }},enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.version }}
             type=ref,event=tag
             type=sha,prefix=sha-
 
@@ -129,6 +141,7 @@ jobs:
 
   create-release:
     needs: docker-build-push
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -150,10 +163,15 @@ jobs:
         id: commits
         run: |
           git fetch --tags
-          LAST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          CURRENT_VERSION="${{ steps.version.outputs.version }}"
+          LAST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^v${CURRENT_VERSION}$" | head -n 1)
           if [ -z "$LAST_TAG" ]; then
-            COMMITS=""
-            echo "has_commits=false" >> "$GITHUB_OUTPUT"
+            COMMITS=$(git log HEAD --pretty=format:"- %s (%h)" --no-merges)
+            if [ -z "$COMMITS" ]; then
+              echo "has_commits=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_commits=true" >> "$GITHUB_OUTPUT"
+            fi
           else
             COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
             if [ -z "$COMMITS" ]; then
@@ -163,9 +181,9 @@ jobs:
             fi
           fi
           {
-            echo 'commits<<EOF'
+            echo 'commits<<COMMITS_EOF'
             echo "$COMMITS"
-            echo 'EOF'
+            echo 'COMMITS_EOF'
           } >> "$GITHUB_OUTPUT"
           echo "Last tag: ${LAST_TAG:-none}"
 
@@ -186,12 +204,12 @@ jobs:
           {
             echo '## Docker Images'
             echo ''
-            echo "- GHCR: \`${GHCR_REPO}:latest\`"
-            echo "- GHCR: \`${GHCR_REPO}:${VERSION}\`"
+            echo "- \`ghcr.io/${GITHUB_REPOSITORY,,}:latest\`"
+            echo "- \`ghcr.io/${GITHUB_REPOSITORY,,}:${VERSION}\`"
             if [ -n "$DOCKERHUB_USERNAME" ]; then
               echo ''
-              echo "- Docker Hub: \`${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest\`"
-              echo "- Docker Hub: \`${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${VERSION}\`"
+              echo "- \`${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest\`"
+              echo "- \`${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${VERSION}\`"
             fi
             if [ "$HAS_COMMITS" = "true" ] && [ -n "$COMMITS" ]; then
               echo ''
@@ -201,32 +219,14 @@ jobs:
             fi
           } > release_body.txt
           {
-            echo 'body<<EOF'
+            echo 'body<<BODY_EOF'
             cat release_body.txt
-            echo 'EOF'
+            echo 'BODY_EOF'
           } >> "$GITHUB_OUTPUT"
-
-      - name: Delete existing release if present
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: v${{ steps.version.outputs.version }}
-        run: |
-          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            echo "Release $TAG_NAME already exists, deleting..."
-            gh release delete "$TAG_NAME" --yes || true
-          fi
-          git fetch --tags
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --tags origin "$TAG_NAME" | grep -q "$TAG_NAME"; then
-            echo "Tag $TAG_NAME already exists, deleting..."
-            git tag -d "$TAG_NAME" 2>/dev/null || true
-            git push origin ":refs/tags/$TAG_NAME" || true
-          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
           body_path: release_body.txt
           draft: false
           prerelease: false
