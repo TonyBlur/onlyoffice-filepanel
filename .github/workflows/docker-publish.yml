@@ -46,18 +46,18 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Get current date
-        id: date
-        run: echo "date=$(date +'%Y.%m.%d')" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from package.json
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Prepare GHCR repository name (lowercase)
         id: ghcr-repo
         run: |
           GHCR_REPO=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "ghcr_repo=$GHCR_REPO" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout
-        uses: actions/checkout@v4
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -90,7 +90,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME != '' && format('docker.io/{0}/{1}', secrets.DOCKERHUB_USERNAME, env.IMAGE_NAME) || '' }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.date.outputs.date }},enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.version }},enable={{is_default_branch}}
             type=ref,event=tag
             type=sha,prefix=sha-
 
@@ -130,20 +130,20 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Get current date
-        id: date
-        run: echo "date=$(date +'%Y.%m.%d')" >> "$GITHUB_OUTPUT"
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Read version from package.json
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Get commits since last release
         id: commits
         run: |
           git fetch --tags
-          LAST_TAG=$(git tag -l --sort=-version:refname | grep -E '^[0-9]{4}\.[0-9]{2}\.[0-9]{2}$' | head -n 1)
+          LAST_TAG=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
           if [ -z "$LAST_TAG" ]; then
             COMMITS=""
             echo "has_commits=false" >> "$GITHUB_OUTPUT"
@@ -175,7 +175,7 @@ jobs:
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           GHCR_REPO: ${{ steps.ghcr-repo.outputs.ghcr_repo }}
-          DATE: ${{ steps.date.outputs.date }}
+          VERSION: ${{ steps.version.outputs.version }}
           HAS_COMMITS: ${{ steps.commits.outputs.has_commits }}
           COMMITS: ${{ steps.commits.outputs.commits }}
           IMAGE: ${{ env.IMAGE_NAME }}
@@ -185,12 +185,12 @@ jobs:
             echo ''
             echo '**GitHub Container Registry:**'
             echo "- \`${GHCR_REPO}:latest\`"
-            echo "- \`${GHCR_REPO}:${DATE}\`"
+            echo "- \`${GHCR_REPO}:${VERSION}\`"
             if [ -n "$DOCKERHUB_USERNAME" ]; then
               echo ''
               echo '**Docker Hub:**'
               echo "- \`${DOCKERHUB_USERNAME}/${IMAGE}:latest\`"
-              echo "- \`${DOCKERHUB_USERNAME}/${IMAGE}:${DATE}\`"
+              echo "- \`${DOCKERHUB_USERNAME}/${IMAGE}:${VERSION}\`"
             fi
             if [ "$HAS_COMMITS" = "true" ] && [ -n "$COMMITS" ]; then
               echo ''
@@ -208,7 +208,7 @@ jobs:
       - name: Delete existing release if present
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ steps.date.outputs.date }}
+          TAG_NAME: v${{ steps.version.outputs.version }}
         run: |
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             echo "Release $TAG_NAME already exists, deleting..."
@@ -224,8 +224,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.date.outputs.date }}
-          name: Release ${{ steps.date.outputs.date }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
           body_path: release_body.txt
           draft: false
           prerelease: false
