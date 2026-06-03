@@ -141,7 +141,6 @@ jobs:
 
   create-release:
     needs: docker-build-push
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -224,9 +223,21 @@ jobs:
             echo 'BODY_EOF'
           } >> "$GITHUB_OUTPUT"
 
+      - name: Delete existing release if present
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: v${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists, deleting..."
+            gh release delete "$TAG_NAME" --yes || true
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           body_path: release_body.txt
           draft: false
           prerelease: false
