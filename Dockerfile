@@ -20,27 +20,30 @@ COPY server.ts .
 COPY server/ ./server/
 RUN npx tsc
 
-# Stage 3: Production — minimal deps, non-root user
+# Stage 3: Production — minimal deps, entrypoint drops to non-root at runtime
 FROM node:18
 
-# Create non-root user (node:node is uid/gid 1000 in official images)
-USER node
 WORKDIR /app
 
-COPY --chown=node:node package.json package-lock.json* ./
+COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund --legacy-peer-deps --omit=dev
 
 # Copy compiled server from TypeScript build stage
-COPY --chown=node:node --from=tcbuilder /app/dist ./dist
+COPY --from=tcbuilder /app/dist ./dist
 
 # Copy compiled frontend from builder stage
-COPY --chown=node:node --from=builder /app/dist ./dist/web/build
+COPY --from=builder /app/dist ./dist/web/build
 
 # Copy server templates
-COPY --chown=node:node server/templates ./server/templates
+COPY server/templates ./server/templates
 
-# Create data directories with correct ownership
+# Create data directories
 RUN mkdir -p server/data/files server/templates
 
+# Entrypoint fixes volume ownership at runtime, then drops to node user
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 3000
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]
