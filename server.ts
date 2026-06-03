@@ -18,9 +18,11 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-// When running from compiled output (dist/server.js), __dirname is /app/dist/,
-// so we need to resolve paths relative to the project root (/app/).
-const ROOT_DIR = path.resolve(__dirname, '..');
+// Detect runtime mode: when running from compiled output (dist/server.js),
+// __dirname is /app/dist/ so we step up one level; when running via ts-node,
+// __dirname is already the repo root.
+const isDevMode = fs.existsSync(path.join(__dirname, 'tsconfig.json'));
+const ROOT_DIR = isDevMode ? __dirname : path.resolve(__dirname, '..');
 
 const FILE_DIR = path.join(ROOT_DIR, 'server', 'data', 'files');
 const META_DIR = path.join(ROOT_DIR, 'server', 'data');
