@@ -24,9 +24,12 @@ onlyoffice-filepanel/
 ├── scripts/                # Build helper scripts
 ├── server.ts               # Express entry point (API + static frontend)
 ├── package.json            # Backend dependencies
-├── Dockerfile              # Multi-stage build → single image
+├── Dockerfile              # 3-stage build → single image (non-root runtime)
+├── docker-entrypoint.sh    # Runtime entrypoint (fixes volume permissions, drops to node user)
 ├── docker-compose.yml      # Run pre-built image (default)
 ├── docker-compose.build.yml # Build image locally
+├── .dockerignore           # Excludes unnecessary files from Docker build context
+├── .env.example            # Example environment configuration
 └── .github/workflows/      # CI: build & publish Docker image to GHCR / Docker Hub
 ```
 
@@ -40,16 +43,17 @@ This project does **NOT** include ONLYOFFICE Document Server; you need to deploy
 
 ### Environment variables
 
-| Variable | Description |
-|---|---|
-| `DOC_SERVER_URL` | URL reachable by end-users to load Document Server assets (e.g. `http://docs.example.com`) |
-| `DOC_SERVER_JWT_SECRET` | JWT secret shared between this app and Document Server |
-| `DOC_SERVER_INTERNAL_HOST` | *(optional)* Address the Document Server uses to reach this app for webhook callbacks (e.g. `http://host.docker.internal:3000`) |
-| `ADMIN_PASSWORD` | Admin login password |
-| `PORT` | App listen port (default `3000`) |
-| `APP_EXTERNAL_PORT` | Host port mapping in docker-compose (default `3000`) |
-| `HOST_FILES_PATH` | Host path for file volume (default: named volume `files_data`) |
-| `OOFP_IMAGE` | *(optional)* Docker image reference for `docker-compose.yml` (default: `ghcr.io/OWNER/onlyoffice-filepanel:latest`) |
+| Variable | Description | Default |
+|---|---|---|
+| `DOC_SERVER_URL` | URL reachable by end-users to load Document Server assets (e.g. `http://docs.example.com`) | `http://localhost:8380` |
+| `DOC_SERVER_JWT_SECRET` | JWT secret shared between this app and Document Server | `your-jwt-secret-here` |
+| `DOC_SERVER_INTERNAL_HOST` | Address the Document Server uses to reach this app for webhook callbacks | `http://host.docker.internal:3000` |
+| `ADMIN_PASSWORD` | Admin login password | `admin` |
+| `CORS_ORIGIN` | Comma-separated list of allowed CORS origins. Leave empty to allow all (dev mode) | *(empty)* |
+| `PORT` | App listen port inside the container | `3000` |
+| `APP_EXTERNAL_PORT` | Host port mapping in docker-compose | `3000` |
+| `HOST_FILES_PATH` | Host path for file volume (default: named volume `files_data`) | *(named volume)* |
+| `OOFP_IMAGE` | Docker image reference for `docker-compose.yml` | `onlyoffice-filepanel:latest` |
 
 ### Templates
 
@@ -57,11 +61,13 @@ Place blank templates under `server/templates/` named `blank.docx`, `blank.pptx`
 
 ### Docker Compose (recommended)
 
-1. Create a `.env` file (you can copy from `.env.example`):
+All environment variables have sensible defaults, so you can start without a `.env` file for quick testing. For production, create a `.env` to override defaults:
+
+1. *(Optional)* Create a `.env` file (see `.env.example` for reference):
    ```env
    DOC_SERVER_URL=http://localhost:8380
-   DOC_SERVER_JWT_SECRET=your-secret
-   ADMIN_PASSWORD=admin123
+   DOC_SERVER_JWT_SECRET=your-jwt-secret-here
+   ADMIN_PASSWORD=admin
    ```
 2. Start the service:
 
@@ -74,7 +80,9 @@ Place blank templates under `server/templates/` named `blank.docx`, `blank.pptx`
    ```bash
    docker compose -f docker-compose.build.yml up --build -d
    ```
-3. Access the UI at **http://localhost:3000**
+3. Access the UI at **http://localhost:3000** (default login password: `admin`)
+
+> **Note:** The container runs as a non-root `node` user. An entrypoint script automatically fixes volume ownership on first start.
 
 ### Local development
 
@@ -104,23 +112,27 @@ See [Install Fonts](./Install_Fonts.md)
 
 ## 📡 API reference
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/files` | List files (supports `sortBy`, `sortOrder`, `search`, `page`, `perPage` query params) |
-| `GET` | `/files/:name` | Serve a file inline (for OnlyOffice document loading) |
-| `GET` | `/api/files/:name/download` | Download a file as attachment |
-| `POST` | `/api/files/create` | Create a new file from template `{ name, format }` |
-| `POST` | `/api/files/upload` | Upload a file (multipart/form-data, field `file`) |
-| `POST` | `/api/files/upload-chunk` | Upload a file chunk `{ filename, index, totalChunks }` |
-| `POST` | `/api/files/upload-chunk/cancel` | Cancel a chunked upload `{ filename }` |
-| `PUT` | `/api/files/:name/rename` | Rename a file `{ newName }` |
-| `POST` | `/api/files/:name/duplicate` | Duplicate a file |
-| `DELETE` | `/api/files/:name` | Delete a file |
-| `GET` | `/api/editor-config/:name` | Get signed OnlyOffice editor configuration JSON |
-| `POST` | `/api/login` | Admin login `{ password }` |
-| `POST` | `/api/logout` | Logout (clear auth cookie) |
-| `GET` | `/api/auth` | Check authentication status |
-| `POST` | `/onlyoffice/webhook` | OnlyOffice Document Server save callback |
+All write operations (create, upload, rename, delete, etc.) require admin authentication via a JWT cookie obtained through `/api/login`. Unauthenticated requests to protected endpoints receive `401`. File listing (`GET /api/files`) and editor config are publicly accessible.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/health` | — | Health check |
+| `GET` | `/api/files` | — | List files (supports `sortBy`, `sortOrder`, `search`, `page`, `perPage` query params) |
+| `GET` | `/files/:name` | — | Serve a file inline (for OnlyOffice document loading) |
+| `GET` | `/api/files/:name/download` | Admin | Download a file as attachment |
+| `POST` | `/api/files/create` | Admin | Create a new file from template `{ name, format }` |
+| `POST` | `/api/files/upload` | Admin | Upload a file (multipart/form-data, field `file`) |
+| `POST` | `/api/files/upload-chunk` | Admin | Upload a file chunk `{ filename, index, totalChunks }` |
+| `POST` | `/api/files/upload-chunk/cancel` | Admin | Cancel a chunked upload `{ filename }` |
+| `PUT` | `/api/files/:name/rename` | Admin | Rename a file `{ newName }` |
+| `POST` | `/api/files/:name/duplicate` | Admin | Duplicate a file |
+| `DELETE` | `/api/files/:name` | Admin | Delete a file |
+| `POST` | `/api/upload-base64` | Admin | Upload a base64-encoded file `{ filename, data }` |
+| `GET` | `/api/editor-config/:name` | — | Get signed OnlyOffice editor configuration JSON |
+| `POST` | `/api/login` | — | Admin login `{ password }` |
+| `POST` | `/api/logout` | — | Logout (clear auth cookie) |
+| `GET` | `/api/auth` | — | Check authentication status |
+| `POST` | `/onlyoffice/webhook` | — | OnlyOffice Document Server save callback |
 
 ## ❓ Troubleshooting
 
