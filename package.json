@@ -12,6 +12,7 @@
     "dev:web": "vite --config web/vite.config.ts"
   },
   "dependencies": {
+    "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "antd": "^5.27.4",
     "axios": "^1.6.0",
     "cookie-parser": "^1.4.7",
@@ -22,10 +23,10 @@
     "jsonwebtoken": "^9.0.2",
     "mime": "^3.0.0",
     "multer": "^2.0.2",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "react-i18next": "^15.7.3",
-    "react-router-dom": "6.14.1"
+    "react-router-dom": "^6.30.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
@@ -35,9 +36,9 @@
     "@types/mime": "^3.0.4",
     "@types/multer": "^2.1.0",
     "@types/node": "^25.6.0",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
     "concurrently": "^9.2.1",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",

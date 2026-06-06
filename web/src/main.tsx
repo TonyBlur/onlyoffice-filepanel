@@ -1,3 +1,4 @@
+import '@ant-design/v5-patch-for-react-19';
 import './i18n';
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
