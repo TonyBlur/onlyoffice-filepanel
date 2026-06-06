@@ -5,7 +5,7 @@ import { GlobalOutlined, ArrowLeftOutlined, UserOutlined, SunOutlined, MoonOutli
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
-import pkg from '../../package.json';
+import pkg from '../../../package.json';
 
 const LANG_KEY = 'preferred_language';
 

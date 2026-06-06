@@ -2,7 +2,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  root: 'web',
   plugins: [react()],
+  build: {
+    outDir: '../dist/web/build',
+    emptyOutDir: true,
+  },
   server: {
     host: true,
     port: Number(process.env.VITE_DEV_PORT || 5173),

@@ -1,26 +1,21 @@
-# Stage 1: Build React frontend (Vite)
+# Stage 1: Build frontend (Vite) + compile server (TypeScript)
 FROM node:18 AS builder
 
 WORKDIR /app
-COPY web/package.json web/package-lock.json* ./
-RUN npm ci --no-audit --no-fund --legacy-peer-deps
 
-COPY web/ .
-RUN npm run build
-
-# Stage 2: Compile TypeScript server
-FROM node:18 AS tcbuilder
-
-WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund --legacy-peer-deps
 
-COPY tsconfig.json .
-COPY server.ts .
+# Build frontend (vite outputs to dist/web/build/)
+COPY web/ ./web/
+RUN npx vite build --config web/vite.config.ts
+
+# Compile server (tsc outputs to dist/)
+COPY tsconfig.json server.ts ./
 COPY server/ ./server/
 RUN npx tsc
 
-# Stage 3: Production — minimal deps, entrypoint drops to non-root at runtime
+# Stage 2: Production — minimal deps, entrypoint drops to non-root at runtime
 FROM node:18
 
 WORKDIR /app
@@ -28,11 +23,8 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund --legacy-peer-deps --omit=dev
 
-# Copy compiled server from TypeScript build stage
-COPY --from=tcbuilder /app/dist ./dist
-
-# Copy compiled frontend from builder stage
-COPY --from=builder /app/dist ./dist/web/build
+# Copy all compiled output from builder
+COPY --from=builder /app/dist ./dist
 
 # Copy server templates
 COPY server/templates ./server/templates

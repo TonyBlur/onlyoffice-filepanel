@@ -840,15 +840,6 @@ const HomePage: React.FC = () => {
             locale={{ emptyText: customEmpty }}
           />
           <div className="pagination-bar">
-            <Pagination
-              current={page}
-              pageSize={perPage}
-              total={totalCount}
-              onChange={(p) => setPage(p)}
-              showSizeChanger={false}
-              showQuickJumper={false}
-              size="default"
-            />
             <Dropdown
               menu={{
                 items: [5, 10, 20, 50].map(n => ({
@@ -867,6 +858,15 @@ const HomePage: React.FC = () => {
                 <DownOutlined className="size-changer-arrow" />
               </button>
             </Dropdown>
+            <Pagination
+              current={page}
+              pageSize={perPage}
+              total={totalCount}
+              onChange={(p) => setPage(p)}
+              showSizeChanger={false}
+              showQuickJumper={false}
+              size="default"
+            />
           </div>
         </div>
       </section>
