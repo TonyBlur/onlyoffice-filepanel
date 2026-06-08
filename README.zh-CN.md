@@ -1,6 +1,12 @@
-# OnlyOffice File Panel<br> — OnlyOffice 极简文件管理面板
+<div align="center">
+
+# OnlyOffice File Panel
+
+ 极简且强大的 OnlyOffice 文件管理面板
 
 [English](./README.md) | 简体中文
+
+</div>
 
 ## ✨ 主要功能
 

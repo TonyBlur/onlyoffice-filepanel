@@ -1,6 +1,12 @@
-# OnlyOffice File Panel<br> — Extremely Simple File Management Panel for OnlyOffice
+<div align="center">
+
+# OnlyOffice File Panel
+
+Extremely Simple yet Powerful File Management Panel for OnlyOffice
 
 English | [简体中文](./README.zh-CN.md)
+
+</div>
 
 ## ✨ Features
 
