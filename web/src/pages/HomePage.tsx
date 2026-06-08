@@ -512,13 +512,13 @@ const HomePage: React.FC = () => {
       width: 300,
       render: (_text: string, record: FileItem) => {
         const showEdit = true;
-        const showDuplicate = windowWidth >= 900;
+        const showDuplicate = isAdminLoggedIn && windowWidth >= 900;
         const showRename = windowWidth >= 1100;
         const showDownload = windowWidth >= 1100;
         const showDelete = isAdminLoggedIn && windowWidth >= 900;
 
         const moreItems: Array<{ key: string; label: string; icon: React.ReactNode; danger?: boolean; onClick: () => void }> = [];
-        if (!showDuplicate) {
+        if (!showDuplicate && isAdminLoggedIn) {
           moreItems.push({ key: 'duplicate', label: t('Duplicate'), icon: <CopyOutlined />, onClick: () => handleDuplicate(record.name) });
         }
         if (!showRename) {
@@ -802,12 +802,12 @@ const HomePage: React.FC = () => {
             <Dropdown
               menu={{
                 items: [
-                  { key: 'mtime-desc', label: t('Modified (Newest)'), onClick: () => { setSortBy('mtime'); setSortOrder('desc'); } },
-                  { key: 'mtime-asc', label: t('Modified (Oldest)'), onClick: () => { setSortBy('mtime'); setSortOrder('asc'); } },
-                  { key: 'name-asc', label: t('Name (A-Z)'), onClick: () => { setSortBy('name'); setSortOrder('asc'); } },
-                  { key: 'name-desc', label: t('Name (Z-A)'), onClick: () => { setSortBy('name'); setSortOrder('desc'); } },
-                  { key: 'size-desc', label: t('Size (Largest)'), onClick: () => { setSortBy('size'); setSortOrder('desc'); } },
-                  { key: 'size-asc', label: t('Size (Smallest)'), onClick: () => { setSortBy('size'); setSortOrder('asc'); } },
+                  { key: 'mtime-desc', label: <span style={sortBy === 'mtime' && sortOrder === 'desc' ? { fontWeight: 700 } : undefined}>{t('Modified (Newest)')}</span>, onClick: () => { setSortBy('mtime'); setSortOrder('desc'); } },
+                  { key: 'mtime-asc', label: <span style={sortBy === 'mtime' && sortOrder === 'asc' ? { fontWeight: 700 } : undefined}>{t('Modified (Oldest)')}</span>, onClick: () => { setSortBy('mtime'); setSortOrder('asc'); } },
+                  { key: 'name-asc', label: <span style={sortBy === 'name' && sortOrder === 'asc' ? { fontWeight: 700 } : undefined}>{t('Name (A-Z)')}</span>, onClick: () => { setSortBy('name'); setSortOrder('asc'); } },
+                  { key: 'name-desc', label: <span style={sortBy === 'name' && sortOrder === 'desc' ? { fontWeight: 700 } : undefined}>{t('Name (Z-A)')}</span>, onClick: () => { setSortBy('name'); setSortOrder('desc'); } },
+                  { key: 'size-desc', label: <span style={sortBy === 'size' && sortOrder === 'desc' ? { fontWeight: 700 } : undefined}>{t('Size (Largest)')}</span>, onClick: () => { setSortBy('size'); setSortOrder('desc'); } },
+                  { key: 'size-asc', label: <span style={sortBy === 'size' && sortOrder === 'asc' ? { fontWeight: 700 } : undefined}>{t('Size (Smallest)')}</span>, onClick: () => { setSortBy('size'); setSortOrder('asc'); } },
                 ],
               }}
               placement="bottomRight"

@@ -10,16 +10,23 @@ import pkg from '../../../package.json';
 const LANG_KEY = 'preferred_language';
 
 // Login Modal
-function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: () => void }): React.ReactElement {
+function LoginModal({ onClose, onLogin, origin }: { onClose: () => void; onLogin: () => void; origin?: string }): React.ReactElement {
   const { t } = useTranslation();
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [closing, setClosing] = useState(false);
+
+  const handleClose = () => {
+    setClosing(true);
+    setTimeout(onClose, 180);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await axios.post('/api/login', { password });
-      onLogin();
+      setClosing(true);
+      setTimeout(onLogin, 180);
     } catch {
       setError(t('login.error'));
       setPassword('');
@@ -27,8 +34,8 @@ function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: () => 
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
+    <div className={`modal-overlay${closing ? ' closing' : ''}`} onClick={handleClose}>
+      <div className="modal-content" style={origin ? { transformOrigin: origin } : undefined} onClick={e => e.stopPropagation()}>
         <form onSubmit={handleLogin}>
           <h3>{t('login.title')}</h3>
           <input
@@ -41,7 +48,7 @@ function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: () => 
           />
           {error && <div className="error">{error}</div>}
           <div className="modal-actions">
-            <button type="button" onClick={onClose}>{t('login.cancel')}</button>
+            <button type="button" onClick={handleClose}>{t('login.cancel')}</button>
             <button type="submit" className="primary">{t('login.submit')}</button>
           </div>
         </form>
@@ -56,6 +63,7 @@ export default function App(): React.ReactElement {
   const [userMode, setUserMode] = useState<'admin' | 'guest'>('guest');
   const [menuOpen, setMenuOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginOrigin, setLoginOrigin] = useState<string | undefined>();
   const [themePref, setThemePref] = useState<string>(() => localStorage.getItem('theme') || 'system');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -157,7 +165,14 @@ export default function App(): React.ReactElement {
 
   const userMenuItems = [
     userMode !== 'admin'
-      ? { key: 'login', label: t('auth.login'), icon: <UserOutlined />, onClick: () => { setMenuOpen(false); setShowLoginModal(true); } }
+      ? { key: 'login', label: t('auth.login'), icon: <UserOutlined />, onClick: (info: { domEvent: React.MouseEvent }) => {
+          setMenuOpen(false);
+          const { clientX, clientY } = info.domEvent;
+          const cx = window.innerWidth / 2;
+          const cy = window.innerHeight / 2;
+          setLoginOrigin(`${clientX - cx}px ${clientY - cy}px`);
+          setShowLoginModal(true);
+        } }
       : { key: 'logout', label: t('auth.logout'), icon: <UserOutlined />, onClick: logout },
   ];
 
@@ -205,7 +220,7 @@ export default function App(): React.ReactElement {
       )}
 
       {showLoginModal && (
-        <LoginModal onClose={() => setShowLoginModal(false)} onLogin={handleLoginSuccess} />
+        <LoginModal onClose={() => setShowLoginModal(false)} onLogin={handleLoginSuccess} origin={loginOrigin} />
       )}
     </div>
   );

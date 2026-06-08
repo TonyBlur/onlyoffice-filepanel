@@ -894,6 +894,11 @@ body{
 }
 
 /* ===== Global Modal (premium style) ===== */
+.ant-modal .ant-modal-mask,
+.ant-modal-root .ant-modal-mask{
+  backdrop-filter:blur(6px) !important;
+  -webkit-backdrop-filter:blur(6px) !important;
+}
 .ant-modal .ant-modal-content{
   border-radius:20px !important;
   border:1px solid var(--border) !important;
@@ -1148,7 +1153,10 @@ body{
   justify-content:center;
   align-items:center;
   z-index:1000;
-  animation:fadeIn .15s ease;
+  animation:modalOverlayIn .2s ease forwards;
+}
+.modal-overlay.closing{
+  animation:modalOverlayOut .18s ease forwards;
 }
 .modal-content{
   background:var(--card-glass);
@@ -1160,6 +1168,10 @@ body{
   padding:24px;
   min-width:320px;
   max-width:400px;
+  animation:modalContentIn .22s cubic-bezier(.22,1,.36,1) forwards;
+}
+.modal-overlay.closing .modal-content{
+  animation:modalContentOut .16s ease forwards;
 }
 .modal-content h3{
   font-size:16px;
@@ -1415,6 +1427,10 @@ body{
   .upload-dock{width:calc(100% - 24px);right:12px;bottom:12px}
 }
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes modalOverlayIn{from{opacity:0}to{opacity:1}}
+@keyframes modalOverlayOut{from{opacity:1}to{opacity:0}}
+@keyframes modalContentIn{from{opacity:0;transform:scale(.92) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes modalContentOut{from{opacity:1;transform:scale(1) translateY(0)}to{opacity:0;transform:scale(.96) translateY(6px)}}
 
 /* ===== Custom Scrollbar ===== */
 /* WebKit (Chrome, Edge, Safari) */
