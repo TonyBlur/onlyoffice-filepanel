@@ -1,30 +1,32 @@
 :root{
-  /* Light theme (default) – aligned with DESIGN.md tokens */
+  /* Light theme (default) – Apple Liquid Glass design */
   --bg:#F6F7FB;
   --card:#FFFFFF;
-  --card-glass:#FFFFFFCC;
+  --card-glass:rgba(255,255,255,0.62);
   --text:#111827;
   --text-secondary:#667085;
-  --text-soft:#98A2B3;
+  --text-soft:#7C8594;
   --border:#E5E7EB;
   --border-strong:#D0D5DD;
   --primary:#365BFF;
   --primary-deep:#253DD8;
   --primary-soft:#EEF2FF;
-  --primary-text:#fff;
-  --accent:#8B5CF6;
   --danger:#E5484D;
   --hover:#F3F4F6;
   --shadow:rgba(16,24,40,0.06);
   --shadow-md:rgba(16,24,40,0.10);
-  --modal-overlay:rgba(16,24,40,0.35);
+  --modal-overlay:rgba(16,24,40,0.25);
+  --glass-shadow:0 8px 32px rgba(16,24,40,0.18);
+  --glass-light:rgba(255,255,255,0.65);
+  --glass-dark:rgba(0,0,0,0.035);
+  --glass-lit:inset 0.5px 0.5px 0 var(--glass-light),inset -0.5px -0.5px 0 var(--glass-dark);
 }
 
 /* Dark theme */
 :root[data-theme="dark"] {
   --bg:#0F1117;
   --card:#1A1C23;
-  --card-glass:#1A1C23E6;
+  --card-glass:rgba(26,28,35,0.66);
   --text:#E5E7EB;
   --text-secondary:#9CA3AF;
   --text-soft:#6B7280;
@@ -33,41 +35,97 @@
   --primary:#4F7BFF;
   --primary-deep:#365BFF;
   --primary-soft:#1E2440;
-  --primary-text:#fff;
-  --accent:#A78BFA;
   --danger:#F87171;
   --hover:#25262B;
   --shadow:rgba(0,0,0,0.25);
   --shadow-md:rgba(0,0,0,0.40);
-  --modal-overlay:rgba(0,0,0,0.55);
+  --modal-overlay:rgba(0,0,0,0.45);
+  --glass-shadow:0 8px 32px rgba(0,0,0,0.5);
+  --glass-light:rgba(255,255,255,0.07);
+  --glass-dark:rgba(0,0,0,0.18);
+  --glass-lit:inset 0.5px 0.5px 0 var(--glass-light),inset -0.5px -0.5px 0 var(--glass-dark);
 }
 
-*{box-sizing:border-box}
+@font-face{
+  font-family:'MiSans';
+  src:url('/fonts/MiSans-VF.ttf') format('truetype');
+  font-weight:100 900;
+  font-style:normal;
+  font-display:block;
+}
+
+*{box-sizing:border-box;
+  font-family:'MiSans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif !important;
+}
 html,body,#root{height:100%}
+
+/* ===== Liquid Glass — backdrop-filter via ::before pseudo-element ===== */
+/* The blur is placed on a positioned pseudo-element so it can animate */
+/* independently of the parent's opacity transition during Ant Design animations */
+@keyframes glassBlurIn{
+  from{backdrop-filter:blur(0) saturate(1);-webkit-backdrop-filter:blur(0) saturate(1)}
+  to{backdrop-filter:blur(16px) saturate(1.8);-webkit-backdrop-filter:blur(16px) saturate(1.8)}
+}
+.ant-dropdown .ant-dropdown-menu,
+.ant-select-dropdown,
+.ant-popover .ant-popover-inner,
+.ant-modal .ant-modal-content,
+.ant-message .ant-message-notice-content,
+.upload-dock{
+  position:relative;
+  overflow:hidden;
+}
+.ant-dropdown .ant-dropdown-menu::before,
+.ant-select-dropdown::before,
+.ant-popover .ant-popover-inner::before,
+.ant-modal .ant-modal-content::before,
+.ant-message .ant-message-notice-content::before,
+.upload-dock::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  background:inherit;
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
+  z-index:-1;
+  animation:glassBlurIn .35s cubic-bezier(.16,1,.3,1) .12s both;
+}
 
 /* ===== Global primary color override ===== */
 /* Ensure all Ant Design primary buttons use our design system color */
 .ant-btn-primary{
   background:var(--primary) !important;
-  border-color:var(--primary) !important;
+  border:none !important;
 }
 .ant-btn-primary:hover{
   background:var(--primary-deep) !important;
-  border-color:var(--primary-deep) !important;
+  border:none !important;
 }
 /* Override Ant Design's default blue focus ring */
 .ant-btn-primary:focus{
   background:var(--primary) !important;
-  border-color:var(--primary) !important;
+  border:none !important;
+}
+/* Kill Ant Design wave/ripple ::after on primary buttons */
+.ant-btn-primary::after{
+  display:none !important;
+}
+/* Ant Design 5 — target .ant-btn-color-primary for primaryShadow override */
+.ant-btn-color-primary{
+  box-shadow:none !important;
 }
 body{
-  font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;
+  font-family:'MiSans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
   background:var(--bg);
   margin:0;
   color:var(--text);
   transition:background-color .25s,color .25s;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
+}
+input,textarea,select,button{
+  font-family:inherit;
 }
 
 /* ===== App Shell Layout ===== */
@@ -85,13 +143,13 @@ body{
   height:56px;
   line-height:56px;
   background:var(--card-glass);
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
-  border-bottom:1px solid var(--border);
-  position:sticky;
-  top:0;
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
+  border-bottom:none;
+  box-shadow:0 0.5px 0 rgba(0,0,0,0.05),var(--glass-lit);
+  position:absolute;
+  top:0;left:0;right:0;
   z-index:100;
-  flex-shrink:0;
 }
 .topbar-controls{
   display:flex;
@@ -104,6 +162,8 @@ body{
   display:flex;
   flex-direction:column;
   min-height:0;
+  padding-top:56px;
+  scroll-behavior:smooth;
 }
 
 /* ===== App Footer ===== */
@@ -119,10 +179,21 @@ body{
 
 .brand-text{
   font-size:18px;
-  font-weight:750;
+  font-weight:700;
   letter-spacing:-0.03em;
   color:var(--text);
   cursor:pointer;
+  background:none;
+  border:none;
+  padding:0;
+  font-family:inherit;
+  transition:opacity .15s ease;
+}
+.brand-text:hover{
+  opacity:.75;
+}
+.brand-text:active{
+  opacity:.6;
 }
 .brand-text span{
   color:var(--primary);
@@ -141,14 +212,14 @@ body{
   justify-content:center;
   cursor:pointer;
   font-size:16px;
-  transition:all .18s ease;
+  transition:background .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;
   outline:none;
   padding:0;
 }
 .glass-icon-btn:hover{
-  background:var(--hover);
+  background:var(--card-glass);
   color:var(--text);
-  border-color:var(--border);
+  border-color:transparent;
 }
 .glass-icon-btn:active{
   transform:scale(.95);
@@ -167,7 +238,7 @@ body{
   padding:0 12px;
   gap:6px;
   font-size:14px;
-  font-weight:550;
+  font-weight:500;
 }
 .glass-icon-btn.back-btn .back-label{
   font-size:13px;
@@ -177,24 +248,22 @@ body{
 .ant-dropdown .ant-dropdown-menu,
 .ant-dropdown-menu-submenu .ant-dropdown-menu{
   border-radius:14px !important;
-  border:1px solid var(--border) !important;
-  box-shadow:0 8px 32px var(--shadow-md) !important;
+  border:none !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
   background:var(--card-glass) !important;
-  backdrop-filter:blur(18px) saturate(1.6) !important;
-  -webkit-backdrop-filter:blur(18px) saturate(1.6) !important;
   padding:6px !important;
   min-width:120px;
 }
 .ant-dropdown .ant-dropdown-menu-item{
   border-radius:10px !important;
   font-size:13px !important;
-  font-weight:500;
+  font-weight:420;
   padding:8px 14px !important;
   color:var(--text) !important;
   transition:background .12s;
 }
 .ant-dropdown .ant-dropdown-menu-item:hover{
-  background:var(--hover) !important;
+  background:var(--primary-soft) !important;
 }
 .ant-dropdown .ant-dropdown-menu-item .anticon{
   color:var(--text-secondary) !important;
@@ -218,8 +287,8 @@ body{
   position:absolute;
   top:0;left:0;right:0;bottom:0;
   background:rgba(54,91,255,0.06);
-  backdrop-filter:blur(8px);
-  -webkit-backdrop-filter:blur(8px);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
   border:2px dashed var(--primary);
   border-radius:20px;
   z-index:9999;
@@ -232,12 +301,12 @@ body{
 .drag-card{
   text-align:center;
   background:var(--card-glass);
-  backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);
-  border:1px solid var(--border);
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
+  border:none;
   border-radius:24px;
   padding:40px 48px 32px;
-  box-shadow:0 16px 48px var(--shadow-md), 0 0 0 1px var(--primary-soft);
+  box-shadow:0 16px 48px var(--shadow-md),0 0 0 1px var(--primary-soft),var(--glass-lit);
   max-width:380px;
   animation:dragCardIn .25s cubic-bezier(.34,1.56,.64,1);
 }
@@ -272,7 +341,7 @@ body{
 }
 .drag-card-formats{
   font-size:11px;
-  font-weight:500;
+  font-weight:420;
   color:var(--text-soft);
   margin:0;
   letter-spacing:0.02em;
@@ -289,10 +358,10 @@ body{
 .workspace-hero{
   display:flex;
   justify-content:space-between;
-  align-items:center;
-  padding:10px 0;
+  align-items:stretch;
+  padding:16px 8px;
   flex-shrink:0;
-  gap:12px;
+  gap:10px;
 }
 .hero-stats{
   display:flex;
@@ -300,53 +369,64 @@ body{
   flex-shrink:0;
 }
 .stat-card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:12px;
-  padding:8px 14px;
+  background:var(--card-glass);
+  border:none;box-shadow:var(--glass-lit);
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
+  border-radius:10px;
+  padding:4px 16px 6px;
   text-align:center;
-  min-width:72px;
-  transition:box-shadow .2s;
+  min-width:80px;
+  transition:box-shadow .2s,transform .2s;
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:center;
+  justify-content:flex-start;
 }
 .stat-card:hover{
-  box-shadow:0 4px 16px var(--shadow);
+  box-shadow:var(--glass-shadow);
   transform:translateY(-1px);
 }
-.stat-card span{
-  display:block;
-  font-size:20px;
-  font-weight:750;
-  letter-spacing:-0.03em;
-  color:var(--text);
-  line-height:1.1;
-}
-.stat-card .stat-card-time{
-  font-size:15px;
-  font-weight:650;
-  letter-spacing:0;
-  white-space:nowrap;
+.stat-card:hover span{
+  font-weight:700;
 }
 .stat-card small{
-  font-size:11px;
-  font-weight:600;
+  font-size:10px;
+  font-weight:500;
   letter-spacing:0.06em;
   text-transform:uppercase;
   color:var(--text-soft);
-  margin-top:4px;
+  margin-bottom:1px;
   display:block;
+  min-height:14px;
+  line-height:1.2;
+  order:0;
+}
+.stat-card span{
+  display:block;
+  font-size:18px;
+  font-weight:600;
+  letter-spacing:-0.03em;
+  color:var(--text);
+  line-height:1.1;
+  order:1;
+  transition:font-weight .2s ease;
+}
+.stat-card .stat-card-time{
+  font-size:14px;
+  font-weight:500;
+  letter-spacing:0;
+  white-space:nowrap;
+  order:1;
 }
 .stat-card.accent{
   background:var(--primary-soft);
   border-color:transparent;
   cursor:pointer;
-  transition:all .2s;
+  transition:box-shadow .2s,transform .2s;
 }
 .stat-card.accent:hover{
-  box-shadow:0 4px 16px var(--shadow);
+  box-shadow:var(--glass-shadow),var(--glass-lit);
   transform:translateY(-1px);
 }
 .stat-card.accent span{
@@ -369,61 +449,72 @@ body{
 }
 .filter-card{
   display:flex;
-  flex-direction:column;
+  flex-direction:row;
   align-items:center;
   justify-content:center;
-  gap:1px;
-  padding:6px 14px;
-  border-radius:12px;
-  border:1px solid var(--border);
-  background:var(--card);
+  gap:4px;
+  padding:4px 12px;
+  border-radius:10px;
+  border:none;box-shadow:var(--glass-lit);
+  background:var(--card-glass);
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
   cursor:pointer;
-  transition:all .18s;
-  min-width:50px;
+  transition:border-color .18s,background .18s,box-shadow .18s,transform .18s;
+  height:100%;
+  min-width:60px;
 }
 .filter-card:hover{
   border-color:var(--border-strong);
-  background:var(--hover);
-  box-shadow:0 4px 12px var(--shadow);
+  background:var(--primary-soft);
+  box-shadow:var(--glass-shadow);
   transform:translateY(-1px);
 }
 .filter-card.active{
   background:var(--primary);
-  border-color:var(--primary);
+  border-color:transparent;
+}
+.filter-card.active:hover{
+  background:var(--primary-deep);
+  border-color:transparent;
 }
 .filter-card.active .filter-card-count{
   color:#fff;
 }
-.filter-card.active .filter-card-label{
-  color:rgba(255,255,255,.78);
+.filter-card.active .filter-card-icon{
+  color:rgba(255,255,255,.85);
+}
+.filter-card-icon{
+  font-size:15px;
+  color:var(--text-soft);
+  line-height:1;
 }
 .filter-card-count{
-  font-size:18px;
-  font-weight:750;
+  font-size:14px;
+  font-weight:450;
   letter-spacing:-0.02em;
   color:var(--text);
-  line-height:1.15;
+  line-height:1;
+  transition:font-weight .2s ease;
 }
-.filter-card-label{
-  font-size:11px;
-  font-weight:600;
-  letter-spacing:0.04em;
-  text-transform:uppercase;
-  color:var(--text-soft);
-  line-height:1.2;
+.filter-card:hover .filter-card-count{
+  font-weight:700;
+}
+.filter-card.active .filter-card-count{
+  font-weight:700;
 }
 
 /* ===== File panel shell ===== */
 .file-panel-shell{
   background:var(--card-glass);
-  backdrop-filter:blur(14px);
-  -webkit-backdrop-filter:blur(14px);
-  border:1px solid var(--border);
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
+  border:none;
   border-radius:20px;
   display:flex;
   flex-direction:column;
   overflow:visible;
-  box-shadow:0 1px 3px var(--shadow);
+  box-shadow:var(--glass-shadow),var(--glass-lit);
 }
 
 /* ===== Panel toolbar ===== */
@@ -432,7 +523,7 @@ body{
   justify-content:space-between;
   align-items:center;
   padding:16px 20px;
-  border-bottom:1px solid var(--border);
+  border-bottom:none;box-shadow:0 0.5px 0 rgba(0,0,0,0.05);
   flex-shrink:0;
   gap:16px;
   flex-wrap:wrap;
@@ -453,38 +544,49 @@ body{
 /* Premium primary button - uses design system primary color */
 .premium-primary{
   border-radius:12px !important;
-  font-weight:650 !important;
+  font-weight:500 !important;
   letter-spacing:-0.01em;
   height:38px;
   padding:0 18px !important;
   background:var(--primary) !important;
-  border-color:var(--primary) !important;
+  border-color:transparent !important;
   color:#fff !important;
-  box-shadow:0 2px 8px rgba(54,91,255,0.25) !important;
-  transition:all .2s;
+  box-shadow:0 2px 8px rgba(54,91,255,0.10) !important;
+  transition:background .2s,border-color .2s,box-shadow .2s,transform .2s cubic-bezier(.25,.46,.45,.94);
 }
 .premium-primary:hover{
   background:var(--primary-deep) !important;
-  border-color:var(--primary-deep) !important;
-  box-shadow:0 6px 20px rgba(54,91,255,0.35) !important;
+  border-color:transparent !important;
+  box-shadow:0 4px 16px rgba(54,91,255,0.22) !important;
   transform:translateY(-1px);
 }
-/* Remove Ant Design default focus ring shadow from toolbar buttons */
-.premium-primary:focus,
-.soft-button:focus{
-  box-shadow:none !important;
+.premium-primary:active{
+  transform:translateY(0) scale(.98);
+  box-shadow:0 1px 4px rgba(54,91,255,0.2) !important;
 }
+.premium-primary:disabled,
+.soft-button:disabled,
+.action-btn:disabled{
+  opacity:.5 !important;
+  cursor:not-allowed !important;
+  transform:none !important;
+  box-shadow:none !important;
+  pointer-events:none;
+}
+/* focus styles handled by hover block at end of file */
 
 /* Soft secondary button */
 .soft-button{
   border-radius:12px !important;
-  font-weight:550 !important;
+  font-weight:500 !important;
   height:38px;
   padding:0 18px !important;
-  border:1px solid var(--border) !important;
-  background:var(--card) !important;
+  border:none !important;
+  background:var(--card-glass) !important;
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
   color:var(--text) !important;
-  box-shadow:0 1px 3px rgba(0,0,0,.04) !important;
+  box-shadow:0 1px 3px rgba(0,0,0,.04),var(--glass-lit) !important;
   transition:transform .2s cubic-bezier(.25,.46,.45,.94),
              box-shadow .2s cubic-bezier(.25,.46,.45,.94),
              background .15s ease,
@@ -496,6 +598,10 @@ body{
   box-shadow:0 3px 10px rgba(0,0,0,.06) !important;
   transform:translateY(-1px);
 }
+.soft-button:active{
+  transform:translateY(0) scale(.98);
+  box-shadow:0 1px 2px rgba(0,0,0,.03) !important;
+}
 .soft-button.danger-soft{
   color:var(--danger) !important;
   border-color:var(--border) !important;
@@ -503,7 +609,7 @@ body{
 .soft-button.danger-soft:hover{
   background:rgba(229,72,77,0.08) !important;
   border-color:var(--danger) !important;
-  box-shadow:0 3px 10px rgba(229,72,77,.1) !important;
+  box-shadow:0 3px 10px rgba(229,72,77,.1),var(--glass-lit) !important;
   transform:translateY(-1px);
 }
 
@@ -515,17 +621,20 @@ body{
    Do NOT change display — only style borders/colors. */
 .file-search.ant-input-search .ant-input-wrapper{
   border-radius:14px !important;
-  border:1px solid var(--border) !important;
-  background:var(--card) !important;
+  border:none !important;box-shadow:0 0 0 0 transparent,var(--glass-lit) !important;
+  background:var(--card-glass) !important;
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
   overflow:hidden !important;
-  transition:border-color .2s,box-shadow .2s;
+  transition:border-color .3s,box-shadow .3s ease,background .2s !important;
 }
 .file-search.ant-input-search .ant-input-wrapper:hover{
   border-color:var(--border-strong) !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
 }
 .file-search.ant-input-search .ant-input-wrapper:focus-within{
   border-color:var(--primary) !important;
-  box-shadow:0 0 0 3px var(--primary-soft);
+  box-shadow:0 4px 20px rgba(54,91,255,0.2),var(--glass-lit) !important;
 }
 /* Affix wrapper — must fill the full wrapper height (40px), no padding */
 .file-search .ant-input-affix-wrapper{
@@ -628,7 +737,7 @@ body{
   background:transparent !important;
   border-bottom:1px solid var(--border) !important;
   font-size:11px;
-  font-weight:650;
+  font-weight:500;
   letter-spacing:0.06em;
   text-transform:uppercase;
   color:var(--text-soft) !important;
@@ -652,6 +761,9 @@ body{
 .premium-table .ant-table-tbody > tr:hover > td{
   background:var(--hover);
 }
+.premium-table .ant-table-tbody > tr.ant-table-row-selected > td{
+  background:var(--primary-soft) !important;
+}
 /* ===== Pagination Bar (integrated page nav + size changer) ===== */
 .pagination-bar{
   display:flex;
@@ -671,17 +783,19 @@ body{
   gap:6px;
   padding:4px 14px;
   border-radius:12px;
-  border:1px solid var(--border);
-  background:var(--card);
+  border:none;
+  background:var(--card-glass);
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
   color:var(--text);
   cursor:pointer;
   font-size:13px;
-  font-weight:550;
+  font-weight:500;
   font-family:inherit;
   height:34px;
   outline:none;
   flex-shrink:0;
-  box-shadow:0 1px 3px rgba(0,0,0,.04);
+  box-shadow:0 1px 3px rgba(0,0,0,.04),var(--glass-lit);
   transition:transform .2s cubic-bezier(.25,.46,.45,.94),
              box-shadow .2s cubic-bezier(.25,.46,.45,.94),
              background .15s ease,
@@ -696,7 +810,7 @@ body{
 .size-changer-btn.open{
   border-color:var(--border-strong);
   background:var(--hover);
-  box-shadow:0 3px 10px rgba(0,0,0,.06);
+  box-shadow:0 3px 10px rgba(0,0,0,.06),var(--glass-lit);
 }
 .size-changer-arrow{
   font-size:10px;
@@ -709,22 +823,30 @@ body{
 /* Pagination items - unified rounded style */
 .pagination-bar .ant-pagination-item{
   border-radius:10px !important;
-  border:1px solid var(--border) !important;
-  background:var(--card) !important;
-  min-width:32px !important;
+  border:none !important;box-shadow:var(--glass-lit) !important;
+  background:var(--card-glass) !important;
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
+  min-width:40px !important;
   height:32px !important;
   line-height:30px !important;
-  font-weight:600;
+  font-weight:500;
   font-size:13px;
-  transition:all .18s;
+  transition:all .18s, font-weight .2s ease;
 }
 .pagination-bar .ant-pagination-item:hover{
   border-color:var(--border-strong) !important;
-  background:var(--hover) !important;
+  background:var(--primary-soft) !important;
+  font-weight:600;
 }
 .pagination-bar .ant-pagination-item-active{
   background:var(--primary) !important;
-  border-color:var(--primary) !important;
+  border-color:transparent !important;
+  font-weight:700;
+}
+.pagination-bar .ant-pagination-item-active:hover{
+  background:var(--primary-deep) !important;
+  border-color:transparent !important;
 }
 .pagination-bar .ant-pagination-item-active a{
   color:#fff !important;
@@ -733,18 +855,22 @@ body{
 .pagination-bar .ant-pagination-prev,
 .pagination-bar .ant-pagination-next{
   border-radius:10px !important;
+  min-width:40px !important;
 }
 .pagination-bar .ant-pagination-prev .ant-pagination-item-link,
 .pagination-bar .ant-pagination-next .ant-pagination-item-link{
   border-radius:10px !important;
-  border:1px solid var(--border) !important;
-  background:var(--card) !important;
+  border:none !important;box-shadow:var(--glass-lit) !important;
+  background:var(--card-glass) !important;
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
   color:var(--text-secondary) !important;
+  min-width:40px !important;
 }
 .pagination-bar .ant-pagination-prev:hover .ant-pagination-item-link,
 .pagination-bar .ant-pagination-next:hover .ant-pagination-item-link{
   border-color:var(--border-strong) !important;
-  background:var(--hover) !important;
+  background:var(--primary-soft) !important;
   color:var(--text) !important;
 }
 /* Pagination disabled state */
@@ -806,7 +932,7 @@ body{
 }
 .file-title{
   font-size:14px;
-  font-weight:600;
+  font-weight:500;
   letter-spacing:-0.01em;
   white-space:nowrap;
   overflow:hidden;
@@ -815,7 +941,7 @@ body{
 }
 .file-subtitle{
   font-size:11px;
-  font-weight:500;
+  font-weight:420;
   color:var(--text-soft);
   letter-spacing:0.02em;
   margin-top:1px;
@@ -837,17 +963,19 @@ body{
 }
 .action-btn{
   border-radius:10px !important;
-  font-weight:600 !important;
+  font-weight:500 !important;
   font-size:13px !important;
   height:34px !important;
   padding:0 14px !important;
   display:inline-flex !important;
   align-items:center !important;
   gap:6px !important;
-  border:1px solid var(--border) !important;
-  background:var(--card) !important;
+  border:none !important;
+  background:var(--card-glass) !important;
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
   color:var(--text) !important;
-  box-shadow:0 1px 3px rgba(0,0,0,.04) !important;
+  box-shadow:0 1px 3px rgba(0,0,0,.04),var(--glass-lit) !important;
   transition:transform .2s cubic-bezier(.25,.46,.45,.94),
              box-shadow .2s cubic-bezier(.25,.46,.45,.94),
              background .15s ease,
@@ -860,15 +988,18 @@ body{
   box-shadow:0 3px 10px rgba(0,0,0,.06) !important;
   transform:translateY(-1px);
 }
+.action-btn:active{
+  transform:translateY(0) scale(.97);
+}
 .action-btn-primary{
   background:var(--primary) !important;
-  border-color:var(--primary) !important;
+  border-color:transparent !important;
   color:#fff !important;
   box-shadow:0 2px 8px rgba(54,91,255,.15) !important;
 }
 .action-btn-primary:hover{
   background:var(--primary-deep) !important;
-  border-color:var(--primary-deep) !important;
+  border-color:transparent !important;
   box-shadow:0 4px 14px rgba(54,91,255,.22) !important;
   transform:translateY(-1px);
 }
@@ -879,7 +1010,7 @@ body{
 .action-btn-secondary:hover{
   background:var(--hover) !important;
   border-color:var(--border-strong) !important;
-  box-shadow:0 3px 10px rgba(0,0,0,.06) !important;
+  box-shadow:0 3px 10px rgba(0,0,0,.06),var(--glass-lit) !important;
   transform:translateY(-1px);
 }
 .action-btn-danger{
@@ -889,23 +1020,21 @@ body{
 .action-btn-danger:hover{
   background:rgba(229,72,77,0.08) !important;
   border-color:var(--danger) !important;
-  box-shadow:0 3px 10px rgba(229,72,77,.1) !important;
+  box-shadow:0 3px 10px rgba(229,72,77,.1),var(--glass-lit) !important;
   transform:translateY(-1px);
 }
 
 /* ===== Global Modal (premium style) ===== */
 .ant-modal .ant-modal-mask,
 .ant-modal-root .ant-modal-mask{
-  backdrop-filter:blur(6px) !important;
-  -webkit-backdrop-filter:blur(6px) !important;
+  backdrop-filter:blur(4px) !important;
+  -webkit-backdrop-filter:blur(4px) !important;
 }
 .ant-modal .ant-modal-content{
   border-radius:20px !important;
-  border:1px solid var(--border) !important;
-  box-shadow:0 24px 64px var(--shadow-md) !important;
+  border:none !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
   background:var(--card-glass) !important;
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
   padding:0 !important;
   overflow:hidden;
 }
@@ -977,7 +1106,7 @@ body{
 /* Modal buttons */
 .ant-modal .ant-btn-default{
   border-radius:12px !important;
-  font-weight:550 !important;
+  font-weight:500 !important;
   height:38px !important;
   padding:0 18px !important;
   border:1px solid var(--border) !important;
@@ -988,17 +1117,17 @@ body{
 }
 .ant-modal .ant-btn-primary{
   border-radius:12px !important;
-  font-weight:650 !important;
+  font-weight:500 !important;
   height:38px !important;
   padding:0 18px !important;
   background:var(--primary) !important;
-  border-color:var(--primary) !important;
+  border-color:transparent !important;
   color:#fff !important;
   box-shadow:0 2px 8px rgba(54,91,255,0.25);
 }
 .ant-modal .ant-btn-primary:hover{
   background:var(--primary-deep) !important;
-  border-color:var(--primary-deep) !important;
+  border-color:transparent !important;
   box-shadow:0 4px 16px rgba(54,91,255,0.35) !important;
 }
 /* Popconfirm / Popover — unified glass-card style matching LoginModal */
@@ -1013,11 +1142,9 @@ body{
 }
 .ant-popover .ant-popover-inner{
   border-radius:20px !important;
-  border:1px solid var(--border) !important;
-  box-shadow:0 24px 64px var(--shadow-md) !important;
+  border:none !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
   background:var(--card-glass) !important;
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
   padding:20px 24px !important;
   overflow:visible !important;
 }
@@ -1041,7 +1168,7 @@ body{
 .ant-popover .ant-popconfirm-message-title{
   color:var(--text) !important;
   font-size:14px;
-  font-weight:600;
+  font-weight:500;
   padding-left:26px !important;
 }
 .ant-popover .ant-popover-buttons,
@@ -1052,7 +1179,7 @@ body{
 }
 .ant-popover .ant-btn{
   border-radius:12px !important;
-  font-weight:550 !important;
+  font-weight:500 !important;
   height:38px !important;
   padding:0 18px !important;
   font-size:14px;
@@ -1068,7 +1195,7 @@ body{
 }
 .ant-popover .ant-btn-primary,
 .ant-popover .ant-btn-dangerous{
-  font-weight:650 !important;
+  font-weight:500 !important;
   box-shadow:0 2px 8px rgba(54,91,255,0.25);
 }
 .ant-popover .ant-btn-dangerous{
@@ -1088,15 +1215,12 @@ body{
   width:340px;
   z-index:1000;
   border-radius:18px !important;
-  border:1px solid var(--border) !important;
-  box-shadow:0 8px 32px var(--shadow-md) !important;
+  border:none !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
   background:var(--card-glass) !important;
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
-}
-.upload-dock .ant-card-head{
-  border-bottom:1px solid var(--border) !important;
-  font-weight:650;
+}.upload-dock .ant-card-head{
+  border-bottom:none !important;box-shadow:0 0.5px 0 rgba(0,0,0,0.05) !important;
+  font-weight:500;
   font-size:14px;
   padding:0 16px !important;
   min-height:44px !important;
@@ -1104,7 +1228,7 @@ body{
 }
 .upload-dock .ant-card-head .ant-card-extra .ant-btn{
   border-radius:8px !important;
-  font-weight:550;
+  font-weight:500;
   color:var(--text-secondary) !important;
 }
 .upload-dock .ant-card-head .ant-card-extra .ant-btn:hover{
@@ -1125,7 +1249,7 @@ body{
 /* Upload dock buttons */
 .upload-dock .ant-btn{
   border-radius:8px !important;
-  font-weight:550;
+  font-weight:500;
   font-size:12px;
 }
 .upload-dock .ant-btn-dangerous{
@@ -1147,8 +1271,8 @@ body{
   position:fixed;
   top:0;left:0;right:0;bottom:0;
   background:var(--modal-overlay);
-  backdrop-filter:blur(6px);
-  -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
   display:flex;
   justify-content:center;
   align-items:center;
@@ -1160,11 +1284,11 @@ body{
 }
 .modal-content{
   background:var(--card-glass);
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
+  backdrop-filter:blur(16px) saturate(1.8);
+  -webkit-backdrop-filter:blur(16px) saturate(1.8);
   border-radius:20px;
-  border:1px solid var(--border);
-  box-shadow:0 24px 64px var(--shadow-md);
+  border:none;
+  box-shadow:var(--glass-shadow),var(--glass-lit);
   padding:24px;
   min-width:320px;
   max-width:400px;
@@ -1214,7 +1338,7 @@ body{
 }
 .modal-actions button{
   border-radius:12px;
-  font-weight:550;
+  font-weight:500;
   height:38px;
   padding:0 18px;
   border:1px solid var(--border);
@@ -1231,9 +1355,9 @@ body{
 }
 .modal-actions button.primary{
   background:var(--primary);
-  border-color:var(--primary);
+  border-color:transparent;
   color:#fff;
-  font-weight:650;
+  font-weight:500;
   box-shadow:0 2px 8px rgba(54,91,255,0.25);
 }
 .modal-actions button.primary:hover{
@@ -1385,14 +1509,14 @@ body{
 }
 .table-empty-title{
   font-size:15px;
-  font-weight:650;
+  font-weight:500;
   letter-spacing:-0.01em;
   color:var(--text);
   margin-bottom:6px;
 }
 .table-empty-desc{
   font-size:13px;
-  font-weight:450;
+  font-weight:420;
   color:var(--text-soft);
   letter-spacing:0.01em;
 }
@@ -1417,8 +1541,9 @@ body{
   .workspace-hero{flex-direction:column;align-items:stretch;gap:12px;padding:12px 0}
   .workspace-hero h1{font-size:24px}
   .hero-filters{gap:6px}
-  .filter-card{padding:8px 12px;min-width:48px}
-  .filter-card-count{font-size:18px}
+  .filter-card{padding:6px 10px}
+  .filter-card-count{font-size:13px}
+  .filter-card-icon{font-size:13px}
   .hero-stats{width:100%}
   .stat-card{flex:1}
   .panel-toolbar{flex-direction:column;align-items:stretch}
@@ -1426,7 +1551,6 @@ body{
   .file-search{flex:1;width:auto}
   .upload-dock{width:calc(100% - 24px);right:12px;bottom:12px}
 }
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes modalOverlayIn{from{opacity:0}to{opacity:1}}
 @keyframes modalOverlayOut{from{opacity:1}to{opacity:0}}
 @keyframes modalContentIn{from{opacity:0;transform:scale(.92) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
@@ -1471,16 +1595,22 @@ body{
   height:auto !important;
 }
 
+/* Message toast — liquid glass (global) */
+.ant-message .ant-message-notice-content{
+  background:var(--card-glass) !important;
+  border:none !important;
+  border-radius:12px !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
+}
+
 /* ===== Comprehensive Dark Mode Overrides ===== */
 
 /* Message toast dark mode */
 :root[data-theme="dark"] .ant-message .ant-message-notice-content{
   background:var(--card-glass) !important;
-  backdrop-filter:blur(14px);
-  -webkit-backdrop-filter:blur(14px);
-  border:1px solid var(--border) !important;
+  border:none !important;
   border-radius:12px !important;
-  box-shadow:0 8px 24px var(--shadow-md) !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
   color:var(--text) !important;
 }
 :root[data-theme="dark"] .ant-message .ant-message-custom-content span{
@@ -1530,19 +1660,39 @@ body{
   background:transparent !important;
 }
 
+/* Select dropdown — selected item bold (global, for pagination size changer etc.) */
+.ant-select-dropdown .ant-select-item-option-selected{
+  font-weight:600 !important;
+  background:var(--primary-soft) !important;
+}
+.ant-select-dropdown .ant-select-item-option-selected .ant-select-item-option-content{
+  font-weight:600 !important;
+}
+.ant-select-dropdown .ant-select-item-option[aria-selected="true"]{
+  font-weight:600 !important;
+}
+.ant-select-dropdown .ant-select-item-option[aria-selected="true"] .ant-select-item-option-content{
+  font-weight:600 !important;
+}
+
+/* Select dropdown — liquid glass (global) */
+.ant-select-dropdown{
+  background:var(--card-glass) !important;
+  border:none !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
+}
+
 /* Select dropdown dark mode (global — for pagination size changer etc.) */
 :root[data-theme="dark"] .ant-select-dropdown{
   background:var(--card-glass) !important;
-  border:1px solid var(--border) !important;
-  box-shadow:0 8px 32px var(--shadow-md) !important;
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
+  border:none !important;
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
 }
 :root[data-theme="dark"] .ant-select-dropdown .ant-select-item{
   color:var(--text) !important;
 }
 :root[data-theme="dark"] .ant-select-dropdown .ant-select-item:hover{
-  background:var(--hover) !important;
+  background:var(--primary-soft) !important;
 }
 :root[data-theme="dark"] .ant-select-dropdown .ant-select-item-option-selected{
   background:var(--primary-soft) !important;
@@ -1573,4 +1723,168 @@ body{
 }
 :root[data-theme="dark"] .ant-table.ant-table-bordered .ant-table-header{
   background:var(--card) !important;
+}
+
+/* ===== Focus Visible — keyboard accessibility ===== */
+.glass-icon-btn:focus-visible,
+.premium-primary:focus-visible,
+.soft-button:focus-visible,
+.action-btn:focus-visible,
+.filter-card:focus-visible,
+.size-changer-btn:focus-visible,
+.ant-pagination .ant-pagination-item:focus-visible,
+.ant-pagination .ant-pagination-prev:focus-visible .ant-pagination-item-link,
+.ant-pagination .ant-pagination-next:focus-visible .ant-pagination-item-link{
+  outline:2px solid var(--primary) !important;
+  outline-offset:2px;
+}
+
+/* ===== Text Selection ===== */
+::selection{
+  background:var(--primary-soft);
+  color:var(--text);
+}
+
+/* ===== Prefers Reduced Motion ===== */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:0.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:0.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+
+/* ===== Responsive — Tablet (≤1024px) ===== */
+@media (max-width:1024px){
+  .home-workspace{padding:0 16px 16px}
+  .workspace-hero{gap:14px;padding:14px 0}
+  .hero-stats{gap:8px}
+  .stat-card{padding:10px 14px}
+  .panel-toolbar{gap:8px}
+  .action-btn{padding:0 10px !important;font-size:12px !important}
+}
+
+/* ===== Responsive — Small phone (≤480px) ===== */
+@media (max-width:480px){
+  .home-workspace{padding:0 8px 8px}
+  .app-topbar{padding:0 12px;height:48px;line-height:48px}
+  .app-main{padding-top:48px}
+  .workspace-hero h1{font-size:20px}
+  .hero-filters{flex-wrap:wrap;gap:4px}
+  .filter-card{padding:5px 8px}
+  .filter-card-count{font-size:12px}
+  .filter-card-icon{font-size:12px}
+  .stat-card{min-width:0;padding:3px 8px 5px}
+  .stat-card small{min-height:14px;font-size:9px}
+  .stat-card span{font-size:16px}
+  .panel-toolbar{gap:6px;padding:10px 12px}
+  .toolbar-actions{flex-wrap:wrap;gap:6px}
+  .soft-button{height:34px;padding:0 12px !important;font-size:13px !important}
+  .premium-primary{height:34px;padding:0 14px !important}
+  .pagination-bar{padding:8px 12px 10px;flex-direction:column;gap:8px}
+  .pagination-bar .ant-pagination{width:100%;justify-content:center}
+  .upload-dock{width:calc(100% - 16px);right:8px;bottom:8px}
+  .file-search{width:100%}
+}
+
+/* ===== Print Styles ===== */
+@media print{
+  .app-topbar,.panel-toolbar,.pagination-bar,.upload-dock,
+  .hero-stats,.hero-filters,.drag-overlay,.glass-icon-btn,
+  .action-btn,.soft-button,.premium-primary,.back-btn,
+  .ant-modal-root,.ant-message,.app-footer{
+    display:none !important;
+  }
+  .app-shell{height:auto;overflow:visible}
+  .app-main{overflow:visible}
+  .home-workspace{max-width:100%;padding:0}
+  .file-panel-shell{border:none !important;box-shadow:none !important}
+  .premium-table{font-size:12px}
+  .premium-table .ant-table-tbody > tr > td{
+    border-bottom:1px solid #ccc !important;
+    padding:6px 10px !important;
+    height:auto !important;
+  }
+  body{background:#fff;color:#000}
+}
+
+/* ===== Liquid Glass — hover & interactive shadows ===== */
+/* KEY: Default & hover must have SAME number of box-shadow layers for CSS transition interpolation.
+   Default uses a transparent outer shadow placeholder so the structure matches hover. */
+
+/* Ensure transitions are NOT overridden by Ant Design CSS-in-JS */
+.stat-card,.filter-card,.soft-button,.action-btn,.premium-primary,
+.size-changer-btn,.action-btn-primary,.action-btn-secondary,.action-btn-danger{
+  transition:box-shadow .3s ease,transform .2s ease,background .15s ease,border-color .15s ease !important;
+}
+/* Default states — transparent outer shadow placeholder for smooth transition */
+.stat-card,.filter-card{
+  box-shadow:0 0 0 0 transparent,var(--glass-lit);
+}
+.soft-button{
+  box-shadow:0 0 0 0 transparent,var(--glass-lit) !important;
+}
+.action-btn{
+  box-shadow:0 0 0 0 transparent,var(--glass-lit) !important;
+}
+.size-changer-btn{
+  box-shadow:0 0 0 0 transparent,var(--glass-lit);
+}
+/* Hover states — outer shadow appears via transition */
+.stat-card:hover,
+.filter-card:hover{
+  box-shadow:var(--glass-shadow),var(--glass-lit);
+}
+.soft-button:hover{
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
+}
+.action-btn:hover{
+  box-shadow:var(--glass-shadow),var(--glass-lit) !important;
+}
+.size-changer-btn:hover{
+  box-shadow:var(--glass-shadow),var(--glass-lit);
+}
+.premium-primary{
+  box-shadow:0 2px 6px rgba(54,91,255,0.08),var(--glass-lit) !important;
+}
+.premium-primary:hover{
+  box-shadow:0 8px 32px rgba(54,91,255,0.45),var(--glass-lit) !important;
+}
+.action-btn-primary{
+  box-shadow:0 2px 6px rgba(54,91,255,0.08),var(--glass-lit) !important;
+}
+.action-btn-primary:hover{
+  box-shadow:0 8px 28px rgba(54,91,255,0.4),var(--glass-lit) !important;
+}
+/* Kill Ant Design blue focus-ring on mouse-click :focus */
+.ant-btn-primary:focus:not(:focus-visible){
+  outline:none !important;
+  box-shadow:0 2px 8px rgba(54,91,255,0.10),var(--glass-lit) !important;
+}
+.premium-primary:focus:not(:focus-visible){
+  outline:none !important;
+  box-shadow:0 2px 6px rgba(54,91,255,0.08),var(--glass-lit) !important;
+}
+.soft-button:focus:not(:focus-visible){
+  outline:none !important;
+  box-shadow:0 0 0 0 transparent,var(--glass-lit) !important;
+}
+.action-btn:focus:not(:focus-visible){
+  outline:none !important;
+  box-shadow:0 0 0 0 transparent,var(--glass-lit) !important;
+}
+/* :focus-visible — override box-shadow only, keep outline from keyboard-a11y block */
+.premium-primary:focus-visible{
+  box-shadow:0 2px 6px rgba(54,91,255,0.08),var(--glass-lit) !important;
+}
+.soft-button:focus-visible{
+  box-shadow:0 0 0 0 transparent,var(--glass-lit) !important;
+}
+.action-btn:focus-visible{
+  box-shadow:0 0 0 0 transparent,var(--glass-lit) !important;
+}
+/* Kill Ant Design :focus-visible outline on ALL ant-btn elements (must be AFTER keyboard-a11y block) */
+.ant-btn:not(:disabled):focus-visible{
+  outline:none !important;
 }

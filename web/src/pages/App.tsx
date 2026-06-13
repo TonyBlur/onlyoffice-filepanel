@@ -16,6 +16,12 @@ function LoginModal({ onClose, onLogin, origin }: { onClose: () => void; onLogin
   const [error, setError] = useState('');
   const [closing, setClosing] = useState(false);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   const handleClose = () => {
     setClosing(true);
     setTimeout(onClose, 180);
@@ -65,6 +71,7 @@ export default function App(): React.ReactElement {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginOrigin, setLoginOrigin] = useState<string | undefined>();
   const [themePref, setThemePref] = useState<string>(() => localStorage.getItem('theme') || 'system');
+  const [langKey, setLangKey] = useState<string>(() => localStorage.getItem(LANG_KEY) || 'zh');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -115,6 +122,7 @@ export default function App(): React.ReactElement {
 
   const handleLangChange = (l: string) => {
     localStorage.setItem(LANG_KEY, l);
+    setLangKey(l);
     i18n.changeLanguage(l === 'zh' ? 'zh-CN' : 'en-US');
   };
 
@@ -153,14 +161,14 @@ export default function App(): React.ReactElement {
   };
 
   const languageMenuItems = [
-    { key: 'zh', label: '简体中文', onClick: () => handleLangChange('zh') },
-    { key: 'en', label: 'English', onClick: () => handleLangChange('en') },
+    { key: 'zh', label: '简体中文', onClick: () => handleLangChange('zh'), style: langKey === 'zh' ? { fontWeight: 600 } : undefined },
+    { key: 'en', label: 'English', onClick: () => handleLangChange('en'), style: langKey === 'en' ? { fontWeight: 600 } : undefined },
   ];
 
   const themeMenuItems = [
-    { key: 'light', label: t('theme.light'), icon: <SunOutlined />, onClick: () => setTheme('light') },
-    { key: 'dark', label: t('theme.dark'), icon: <MoonOutlined />, onClick: () => setTheme('dark') },
-    { key: 'system', label: t('theme.system'), icon: <DesktopOutlined />, onClick: () => setTheme('system') },
+    { key: 'light', label: t('theme.light'), icon: <SunOutlined />, onClick: () => setTheme('light'), style: themePref === 'light' ? { fontWeight: 600 } : undefined },
+    { key: 'dark', label: t('theme.dark'), icon: <MoonOutlined />, onClick: () => setTheme('dark'), style: themePref === 'dark' ? { fontWeight: 600 } : undefined },
+    { key: 'system', label: t('theme.system'), icon: <DesktopOutlined />, onClick: () => setTheme('system'), style: themePref === 'system' ? { fontWeight: 600 } : undefined },
   ];
 
   const userMenuItems = [
@@ -184,9 +192,9 @@ export default function App(): React.ReactElement {
             <ArrowLeftOutlined /> <span className="back-label">{t('Back')}</span>
           </button>
         ) : (
-          <div className="brand-text" onClick={() => navigate('/')}>
+          <button className="brand-text" onClick={() => navigate('/')} aria-label={t('OnlyOffice File Panel')}>
             {t('OnlyOffice')} <span>{t('File Panel')}</span>
-          </div>
+          </button>
         )}
         <div className="topbar-controls">
           {!isEditorPage && (

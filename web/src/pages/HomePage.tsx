@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Button, Table, Modal, Input, Upload, message, Space, Popconfirm, Select, Progress, Card, Dropdown, Pagination } from 'antd';
-import { UploadOutlined, PlusOutlined, FileTextOutlined, FilePdfOutlined, FileExcelOutlined, FilePptOutlined, FileOutlined, CloudUploadOutlined, EditOutlined, DeleteOutlined, FormOutlined, MinusCircleOutlined, CopyOutlined, DownloadOutlined, MoreOutlined, SortAscendingOutlined, DownOutlined } from '@ant-design/icons';
+import { Button, Table, Modal, Input, Upload, message, Space, Popconfirm, Select, Progress, Card, Dropdown, Pagination, Tooltip } from 'antd';
+import { UploadOutlined, PlusOutlined, FileTextOutlined, FilePdfOutlined, FileExcelOutlined, FilePptOutlined, FileOutlined, CloudUploadOutlined, EditOutlined, DeleteOutlined, FormOutlined, MinusCircleOutlined, CopyOutlined, DownloadOutlined, MoreOutlined, SortAscendingOutlined, DownOutlined, AppstoreOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import { useOutletContext, useLocation } from 'react-router-dom';
@@ -62,8 +62,10 @@ const HomePage: React.FC = () => {
   const [isRenameModalVisible, setIsRenameModalVisible] = useState(false);
   const [renameTarget, setRenameTarget] = useState('');
   const [renameNewName, setRenameNewName] = useState('');
-  const [sortBy, setSortBy] = useState('mtime');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sortBy, setSortByState] = useState(() => localStorage.getItem('sortBy') || 'mtime');
+  const [sortOrder, setSortOrderState] = useState(() => localStorage.getItem('sortOrder') || 'desc');
+  const setSortBy = (v: string) => { setSortByState(v); localStorage.setItem('sortBy', v); };
+  const setSortOrder = (v: string) => { setSortOrderState(v); localStorage.setItem('sortOrder', v); };
   const [isExtWarningVisible, setIsExtWarningVisible] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const { t } = useTranslation();
@@ -106,7 +108,8 @@ const HomePage: React.FC = () => {
   }, [hasActiveUploads]);
 
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(5);
+  const [perPage, setPerPageState] = useState(() => { const v = parseInt(localStorage.getItem('perPage') || '5', 10); return [5,10,20,50].includes(v) ? v : 5; });
+  const setPerPage = (v: number) => { setPerPageState(v); localStorage.setItem('perPage', String(v)); };
   const [perPageOpen, setPerPageOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -227,11 +230,15 @@ const HomePage: React.FC = () => {
     return filteredAndSortedFiles.slice(start, start + perPage);
   }, [filteredAndSortedFiles, page, perPage]);
 
-  // Track window width for responsive action buttons
+  // Track window width for responsive action buttons (debounced)
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
+    let rafId: number;
+    const handleResize = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => setWindowWidth(window.innerWidth));
+    };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); cancelAnimationFrame(rafId); };
   }, []);
 
   // Fetch files on mount
@@ -273,8 +280,9 @@ const HomePage: React.FC = () => {
     }
   }, [perPage, totalCount, page]);
 
-  // Global drag-and-drop
+  // Global drag-and-drop (admin only — upload endpoints require admin)
   useEffect(() => {
+    if (!isAdminLoggedIn) return;
     let dragCounter = 0;
     const onDragEnter = (e: DragEvent) => {
       e.preventDefault();
@@ -313,7 +321,7 @@ const HomePage: React.FC = () => {
       window.removeEventListener('dragleave', onDragLeave);
       window.removeEventListener('drop', onDrop);
     };
-  }, []);
+  }, [isAdminLoggedIn]);
 
   // ---- File operations ----
   const showModal = () => { setIsModalVisible(true); };
@@ -467,7 +475,7 @@ const HomePage: React.FC = () => {
     const remaining = uploadTasksRef.current.filter(t => t.uid !== uid);
     uploadTasksRef.current = remaining;
     setUploadTasks([...remaining]);
-    messageApi.error(t('files.uploadFailed'));
+    messageApi.info(t('Upload cancelled'));
     if (remaining.length === 0) setIsUploadListVisible(false);
   };
 
@@ -714,7 +722,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="home-workspace">
-      {isDragging && (
+      {isAdminLoggedIn && isDragging && (
         <div className="drag-overlay">
           <div className="drag-card">
             <div className="drag-card-icon">
@@ -731,21 +739,23 @@ const HomePage: React.FC = () => {
       <section className="workspace-hero">
         <div className="hero-filters">
           {[
-            { key: 'all', label: t('All'), count: typeFilterCounts.all },
-            { key: 'doc', label: t('Docs'), count: typeFilterCounts.doc },
-            { key: 'sheet', label: t('Sheets'), count: typeFilterCounts.sheet },
-            { key: 'slide', label: t('Slides'), count: typeFilterCounts.slide },
-            { key: 'pdf', label: t('PDFs'), count: typeFilterCounts.pdf },
-            { key: 'other', label: t('Other'), count: typeFilterCounts.other },
+            { key: 'all', label: t('All'), count: typeFilterCounts.all, icon: <AppstoreOutlined /> },
+            { key: 'doc', label: t('Docs'), count: typeFilterCounts.doc, icon: <FileTextOutlined /> },
+            { key: 'sheet', label: t('Sheets'), count: typeFilterCounts.sheet, icon: <FileExcelOutlined /> },
+            { key: 'slide', label: t('Slides'), count: typeFilterCounts.slide, icon: <FilePptOutlined /> },
+            { key: 'pdf', label: t('PDFs'), count: typeFilterCounts.pdf, icon: <FilePdfOutlined /> },
+            { key: 'other', label: t('Other'), count: typeFilterCounts.other, icon: <FileOutlined /> },
           ].map(item => (
-            <button
-              key={item.key}
-              className={`filter-card ${typeFilter === item.key ? 'active' : ''}`}
-              onClick={() => { setTypeFilter(item.key); setPage(1); }}
-            >
-              <span className="filter-card-count">{item.count}</span>
-              <span className="filter-card-label">{item.label}</span>
-            </button>
+            <Tooltip key={item.key} title={item.label} placement="bottom" mouseEnterDelay={0.3}>
+              <button
+                className={`filter-card ${typeFilter === item.key ? 'active' : ''}`}
+                aria-pressed={typeFilter === item.key}
+                onClick={() => { setTypeFilter(item.key); setPage(1); }}
+              >
+                <span className="filter-card-icon">{item.icon}</span>
+                <span className="filter-card-count">{item.count}</span>
+              </button>
+            </Tooltip>
           ))}
         </div>
         <div className="hero-stats" aria-label="workspace statistics">
@@ -781,9 +791,11 @@ const HomePage: React.FC = () => {
             <Button className="premium-primary" type="primary" icon={<PlusOutlined />} onClick={showModal}>
               {t('New File')}
             </Button>
-            <Upload customRequest={handleUpload as never} showUploadList={false}>
-              <Button className="soft-button" icon={<UploadOutlined />}>{t('Upload File')}</Button>
-            </Upload>
+            {isAdminLoggedIn && (
+              <Upload customRequest={handleUpload as never} showUploadList={false}>
+                <Button className="soft-button" icon={<UploadOutlined />}>{t('Upload File')}</Button>
+              </Upload>
+            )}
             {isAdminLoggedIn && (
               <Popconfirm
                 title={t('Are you sure to delete selected files?')}
@@ -802,12 +814,12 @@ const HomePage: React.FC = () => {
             <Dropdown
               menu={{
                 items: [
-                  { key: 'mtime-desc', label: <span style={sortBy === 'mtime' && sortOrder === 'desc' ? { fontWeight: 700 } : undefined}>{t('Modified (Newest)')}</span>, onClick: () => { setSortBy('mtime'); setSortOrder('desc'); } },
-                  { key: 'mtime-asc', label: <span style={sortBy === 'mtime' && sortOrder === 'asc' ? { fontWeight: 700 } : undefined}>{t('Modified (Oldest)')}</span>, onClick: () => { setSortBy('mtime'); setSortOrder('asc'); } },
-                  { key: 'name-asc', label: <span style={sortBy === 'name' && sortOrder === 'asc' ? { fontWeight: 700 } : undefined}>{t('Name (A-Z)')}</span>, onClick: () => { setSortBy('name'); setSortOrder('asc'); } },
-                  { key: 'name-desc', label: <span style={sortBy === 'name' && sortOrder === 'desc' ? { fontWeight: 700 } : undefined}>{t('Name (Z-A)')}</span>, onClick: () => { setSortBy('name'); setSortOrder('desc'); } },
-                  { key: 'size-desc', label: <span style={sortBy === 'size' && sortOrder === 'desc' ? { fontWeight: 700 } : undefined}>{t('Size (Largest)')}</span>, onClick: () => { setSortBy('size'); setSortOrder('desc'); } },
-                  { key: 'size-asc', label: <span style={sortBy === 'size' && sortOrder === 'asc' ? { fontWeight: 700 } : undefined}>{t('Size (Smallest)')}</span>, onClick: () => { setSortBy('size'); setSortOrder('asc'); } },
+                  { key: 'mtime-desc', label: <span style={sortBy === 'mtime' && sortOrder === 'desc' ? { fontWeight: 600 } : undefined}>{t('Modified (Newest)')}</span>, onClick: () => { setSortBy('mtime'); setSortOrder('desc'); } },
+                  { key: 'mtime-asc', label: <span style={sortBy === 'mtime' && sortOrder === 'asc' ? { fontWeight: 600 } : undefined}>{t('Modified (Oldest)')}</span>, onClick: () => { setSortBy('mtime'); setSortOrder('asc'); } },
+                  { key: 'name-asc', label: <span style={sortBy === 'name' && sortOrder === 'asc' ? { fontWeight: 600 } : undefined}>{t('Name (A-Z)')}</span>, onClick: () => { setSortBy('name'); setSortOrder('asc'); } },
+                  { key: 'name-desc', label: <span style={sortBy === 'name' && sortOrder === 'desc' ? { fontWeight: 600 } : undefined}>{t('Name (Z-A)')}</span>, onClick: () => { setSortBy('name'); setSortOrder('desc'); } },
+                  { key: 'size-desc', label: <span style={sortBy === 'size' && sortOrder === 'desc' ? { fontWeight: 600 } : undefined}>{t('Size (Largest)')}</span>, onClick: () => { setSortBy('size'); setSortOrder('desc'); } },
+                  { key: 'size-asc', label: <span style={sortBy === 'size' && sortOrder === 'asc' ? { fontWeight: 600 } : undefined}>{t('Size (Smallest)')}</span>, onClick: () => { setSortBy('size'); setSortOrder('asc'); } },
                 ],
               }}
               placement="bottomRight"
@@ -820,6 +832,7 @@ const HomePage: React.FC = () => {
               className="file-search"
               placeholder={t('Search files')}
               allowClear
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               onSearch={(val) => {
                 setSearchQuery(val);
                 setPage(1);
@@ -846,9 +859,10 @@ const HomePage: React.FC = () => {
                   key: String(n),
                   label: `${n} ${t('pagination.perPage')}`,
                   onClick: () => { setPerPage(n); setPage(1); },
+                  style: n === perPage ? { fontWeight: 600 } : undefined,
                 })),
               }}
-              trigger={['click']}
+              trigger={['hover']}
               placement="topRight"
               open={perPageOpen}
               onOpenChange={setPerPageOpen}
