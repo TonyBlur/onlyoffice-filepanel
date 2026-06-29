@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/TonyBlur/onlyoffice-filepanel/main/web/public/oofp-icon-96.png" alt="OnlyOffice File Panel Logo" width="96" height="96" />
+
 # OnlyOffice File Panel
 
 Extremely Simple yet Powerful File Management Panel for OnlyOffice
