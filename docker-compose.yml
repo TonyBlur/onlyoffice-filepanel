@@ -1,6 +1,6 @@
 services:
   app:
-    image: ${OOFP_IMAGE:-onlyoffice-filepanel:latest}
+    image: ${OOFP_IMAGE:-tonyblu/onlyoffice-filepanel:latest}
     build:
       context: .
       dockerfile: Dockerfile
