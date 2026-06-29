@@ -1,0 +1,26 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DOC_SERVER_URL: ${DOC_SERVER_URL:-http://localhost:8380}
+      DOC_SERVER_INTERNAL_HOST: ${DOC_SERVER_INTERNAL_HOST:-http://host.docker.internal:3000}
+      DOC_SERVER_JWT_SECRET: ${DOC_SERVER_JWT_SECRET:-your-jwt-secret-here}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      PORT: 3000
+    ports:
+      - "${APP_EXTERNAL_PORT:-3000}:3000"
+    volumes:
+      - ${HOST_FILES_PATH:-files_data}:/app/server/data/files:rw
+    networks:
+      - onlyoffice-network
+    restart: unless-stopped
+
+volumes:
+  files_data:
+    driver: local
+
+networks:
+  onlyoffice-network:
+    driver: bridge

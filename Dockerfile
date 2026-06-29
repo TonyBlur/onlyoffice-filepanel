@@ -1,24 +1,41 @@
-# Build stage: build React frontend
+# Stage 1: Build frontend (Vite) + compile server (TypeScript)
 FROM node:18 AS builder
 
 WORKDIR /app
-COPY web/package.json web/package-lock.json* ./
-RUN npm install --no-audit --no-fund --legacy-peer-deps
 
-COPY web/ .
-ENV REACT_APP_VERSION=0.2.0
-RUN npm run build
+COPY package.json package-lock.json* ./
+RUN npm ci --no-audit --no-fund --legacy-peer-deps
 
-# Production stage: Node.js server + static build
+# Build frontend (vite outputs to dist/web/build/)
+COPY web/ ./web/
+RUN npx vite build --config web/vite.config.ts
+
+# Compile server (tsc outputs to dist/)
+COPY tsconfig.json server.ts ./
+COPY server/ ./server/
+RUN npx tsc
+
+# Stage 2: Production — minimal deps, entrypoint drops to non-root at runtime
 FROM node:18
 
 WORKDIR /app
+
 COPY package.json package-lock.json* ./
-RUN npm install --production --no-audit --no-fund --legacy-peer-deps
+RUN npm ci --no-audit --no-fund --legacy-peer-deps --omit=dev
 
-COPY server/ ./server/
-COPY --from=builder /app/build ./web/build
-COPY server.js .
+# Copy all compiled output from builder
+COPY --from=builder /app/dist ./dist
 
-EXPOSE 4000
-CMD ["node", "server.js"]
+# Copy server templates
+COPY server/templates ./server/templates
+
+# Create data directories
+RUN mkdir -p server/data/files server/templates
+
+# Entrypoint fixes volume ownership at runtime, then drops to node user
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+EXPOSE 3000
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["node", "dist/server.js"]

@@ -1,34 +1,22 @@
 services:
-  # Note: ONLYOFFICE Document Server (onlyoffice/documentserver) is intentionally NOT included
-  # in this compose file. Please install the Document Server separately and set the
-  # environment variable DOC_SERVER_URL to the browser-accessible URL of your
-  # Document Server (for example: http://localhost:8080 or https://docs.example.com).
-  #
-  # Rationale: the editor HTML returned by the server injects the Document Server URL
-  # for the browser to load scripts from. If you run Document Server in a different
-  # container/network, the container name (eg. http://docserver) may not be resolvable
-  # by your browser. To avoid confusion we require users to deploy Document Server
-  # (official repo: https://github.com/ONLYOFFICE/Docker-DocumentServer) and expose
-  # a browser-accessible address, then configure DOC_SERVER_URL accordingly.
-
   app:
-    build: .
+    image: ${OOFP_IMAGE:-onlyoffice-filepanel:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
-      # DOC_SERVER_URL must be reachable by the browser.
-      - DOC_SERVER_URL=${DOC_SERVER_URL:-http://localhost:8380}
-      # DOC_SERVER_INTERNAL_HOST is the in-network address for Document Server callbacks
-      - DOC_SERVER_INTERNAL_HOST=${DOC_SERVER_INTERNAL_HOST:-http://host.docker.internal:4000}
-      # JWT secret used to sign editor config for OnlyOffice Document Server
-      - DOC_SERVER_JWT_SECRET=${DOC_SERVER_JWT_SECRET:-hUQTo541dF2UjKzO56Ux9jHOD62csevJ}
-      # Admin password for login
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
-      - PORT=4000
+      DOC_SERVER_URL: ${DOC_SERVER_URL:-http://localhost:8380}
+      DOC_SERVER_INTERNAL_HOST: ${DOC_SERVER_INTERNAL_HOST:-http://host.docker.internal:3000}
+      DOC_SERVER_JWT_SECRET: ${DOC_SERVER_JWT_SECRET:-your-jwt-secret-here}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      PORT: 3000
     ports:
-      - "${APP_EXTERNAL_PORT:-4000}:4000"
+      - "${APP_EXTERNAL_PORT:-3000}:3000"
     volumes:
       - ${HOST_FILES_PATH:-files_data}:/app/server/data/files:rw
     networks:
       - onlyoffice-network
+    restart: unless-stopped
 
 volumes:
   files_data:

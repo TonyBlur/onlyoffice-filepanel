@@ -1,12 +1,11 @@
 .editor-page {
   display: flex;
   flex-direction: column;
-  /* Prefer using the shared header height variable; fall back to 56px and use !important to override other rules */
-  height: calc(100vh - var(--app-header-height, 56px)) !important;
-  /* allow flex children to size correctly */
+  height: 100%;
   flex: 1 1 auto;
   padding: 0;
   box-sizing: border-box;
+  min-height: 0;
 }
 
 .editor-container {
@@ -27,7 +26,7 @@
   align-items: center;
   height: 100%;
   font-size: 18px;
-  color: #666;
+  color: var(--text-secondary, #666);
 }
 
 .loading-spinner {
@@ -40,8 +39,8 @@
   justify-content: center;
   align-items: center;
   height: 100vh;
-  color: #d32f2f;
-  background: #ffebee;
+  color: var(--danger, #d32f2f);
+  background: rgba(229, 72, 77, 0.08);
   padding: 40px;
   border-radius: 8px;
   text-align: center;
@@ -49,13 +48,18 @@
 
 .editor-error h2 {
   margin: 0 0 20px 0;
-  color: #d32f2f;
+  color: var(--danger, #d32f2f);
 }
 
-/* 确保编辑器容器正确显示OnlyOffice编辑器 */
+/* Dark mode overrides */
+:root[data-theme="dark"] .editor-error {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* OnlyOffice editor iframe */
 #editor-container iframe {
   width: 100%;
-  height: 100%; /* fill the editor container height */
+  height: 100%;
   border: none;
   display: block;
   padding: 0;

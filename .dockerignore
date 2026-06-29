@@ -1,0 +1,13 @@
+.git/
+.gitignore
+node_modules/
+server/data/
+.env
+.env.*
+*.md
+.github/
+commonChineseFonts.tar
+docker-compose.override.yml
+.vscode/
+.idea/
+*.log
